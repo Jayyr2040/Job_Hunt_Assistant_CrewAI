@@ -39,6 +39,26 @@ async function startServer() {
   // System status endpoint to inspect configured models & Ollama connectivity
   app.get('/api/system-status', async (req, res) => {
     const hasGemini = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'dummy-key-for-dev');
+    const hasOpenAICompatible = Boolean(
+      process.env.OPENAI_API_KEY ||
+      process.env.GROQ_API_KEY ||
+      process.env.OPENROUTER_API_KEY ||
+      process.env.DEEPSEEK_API_KEY ||
+      process.env.OPENAI_BASE_URL
+    );
+
+    const openAiProvider = process.env.GROQ_API_KEY
+      ? 'Groq API'
+      : process.env.OPENROUTER_API_KEY
+      ? 'OpenRouter API'
+      : process.env.DEEPSEEK_API_KEY
+      ? 'DeepSeek API'
+      : process.env.OPENAI_API_KEY
+      ? 'OpenAI API'
+      : process.env.OPENAI_BASE_URL
+      ? 'Custom OpenAI-compatible Endpoint'
+      : 'None';
+
     const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
     let ollamaStatus = 'offline';
     let ollamaModels: string[] = [];
@@ -56,14 +76,18 @@ async function startServer() {
 
     res.json({
       geminiConfigured: hasGemini,
+      openAICompatibleConfigured: hasOpenAICompatible,
+      openAiProvider,
       ollamaStatus,
       ollamaHost,
       ollamaModels,
       activeEngine: process.env.FORCE_OLLAMA === 'true'
         ? 'Ollama Local'
+        : hasOpenAICompatible
+        ? `${openAiProvider} Router`
         : hasGemini
-          ? 'Gemini API (with Ollama Fallback)'
-          : 'Ollama Local / Contextual Fallback Engine',
+        ? 'Gemini API (with Multi-Router Fallbacks)'
+        : 'Ollama Local / Contextual Fallback Engine',
     });
   });
 
@@ -240,59 +264,163 @@ async function startServer() {
 
   let geminiQuotaExceededUntil = 0;
 
-  // Helper to query local Ollama server if available as a fallback or primary LLM
-  async function tryOllamaGenerate(prompt: string, isJson: boolean = false): Promise<{ text: string } | null> {
-    const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+  // Simple in-memory response cache for duplicate agent prompts within 5 minutes
+  const agentResponseCache = new Map<string, { response: { text: string }; expiresAt: number }>();
+
+  // Sequential Execution Queue for Local Ollama to prevent CPU/GPU saturation when multiple agents run
+  let ollamaQueueChain: Promise<any> = Promise.resolve();
+
+  function enqueueOllamaTask<T>(task: () => Promise<T>): Promise<T> {
+    const res = ollamaQueueChain.then(task, task);
+    ollamaQueueChain = res.catch(() => {});
+    return res;
+  }
+
+  // Helper to query any OpenAI-compatible API Router (Groq, OpenRouter, DeepSeek, OpenAI, LM Studio, etc.)
+  async function tryOpenAICompatibleGenerate(prompt: string, isJson: boolean = false): Promise<{ text: string } | null> {
+    const apiKey =
+      process.env.OPENAI_API_KEY ||
+      process.env.GROQ_API_KEY ||
+      process.env.OPENROUTER_API_KEY ||
+      process.env.DEEPSEEK_API_KEY ||
+      process.env.LLM_API_KEY;
+
+    const baseUrl =
+      process.env.OPENAI_BASE_URL ||
+      process.env.LLM_BASE_URL ||
+      (process.env.GROQ_API_KEY ? 'https://api.groq.com/openai/v1' : null) ||
+      (process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : null) ||
+      (process.env.DEEPSEEK_API_KEY ? 'https://api.deepseek.com/v1' : null) ||
+      (apiKey ? 'https://api.openai.com/v1' : null);
+
+    if (!baseUrl && !apiKey) return null;
+
+    const defaultModel =
+      process.env.OPENAI_MODEL ||
+      process.env.LLM_MODEL ||
+      (process.env.GROQ_API_KEY ? 'llama-3.3-70b-versatile' : null) ||
+      (process.env.OPENROUTER_API_KEY ? 'meta-llama/llama-3.3-70b-instruct' : null) ||
+      (process.env.DEEPSEEK_API_KEY ? 'deepseek-chat' : null) ||
+      'gpt-4o-mini';
+
+    const normalizedUrl = (baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const endpoint = `${normalizedUrl}/chat/completions`;
+
     try {
-      const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(2500) });
-      if (!tagsRes.ok) {
-        return null;
+      console.log(`[OpenAI-Compatible Router] Querying model "${defaultModel}" at ${normalizedUrl}...`);
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey.trim()}`;
       }
-      const tagsData = (await tagsRes.json()) as any;
-      const models: any[] = tagsData.models || [];
-      if (!models || models.length === 0) {
-        console.warn(`[Ollama Engine] Reachable at ${ollamaHost}, but no models found. Run "ollama pull llama3.2" in your terminal to load a model.`);
-        return null;
+      if (process.env.OPENROUTER_API_KEY) {
+        headers['HTTP-Referer'] = 'https://ai.studio';
+        headers['X-Title'] = 'Job Hunt Assistant CrewAI';
       }
 
-      const preferredModel = process.env.OLLAMA_MODEL;
-      const modelName = preferredModel || models[0].name || models[0].model || 'llama3.2';
-      console.log(`[Ollama Engine] Processing request via local model "${modelName}" at ${ollamaHost}...`);
-
-      const formattedPrompt = isJson
-        ? `${prompt}\n\nCRITICAL INSTRUCTION: Output ONLY valid raw JSON syntax matching the schema requested. No markdown formatting, no conversation.`
-        : prompt;
-
-      const genRes = await fetch(`${ollamaHost}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: modelName,
-          prompt: formattedPrompt,
-          stream: false,
-          format: isJson ? 'json' : undefined,
-          options: {
-            temperature: 0.2,
-            num_ctx: 2048,
-            num_predict: 1024,
+      const bodyPayload: any = {
+        model: defaultModel,
+        messages: [
+          {
+            role: 'system',
+            content: isJson
+              ? 'You are a precise JSON generator. Reply ONLY with raw JSON. Do NOT wrap in markdown backticks. No conversational text.'
+              : 'You are a professional AI career assistant.',
           },
-        }),
-        signal: AbortSignal.timeout(180000), // 3 minutes allowance for local inference on CPU/GPU
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.2,
+      };
+
+      if (isJson) {
+        bodyPayload.response_format = { type: 'json_object' };
+      }
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(bodyPayload),
+        signal: AbortSignal.timeout(45000),
       });
 
-      if (!genRes.ok) {
-        console.warn(`[Ollama Engine] Generate request failed with HTTP ${genRes.status}`);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.warn(`[OpenAI-Compatible Router] HTTP ${res.status} error from ${normalizedUrl}:`, errorText.slice(0, 300));
         return null;
       }
-      const genData = (await genRes.json()) as any;
-      if (genData && genData.response) {
-        return { text: genData.response };
+
+      const data = (await res.json()) as any;
+      const responseText = data?.choices?.[0]?.message?.content;
+      if (responseText) {
+        return { text: responseText };
       }
       return null;
-    } catch (e: any) {
-      console.warn(`[Ollama Engine] Local inference attempt notice: ${e?.message || e}`);
+    } catch (err: any) {
+      console.warn(`[OpenAI-Compatible Router] Inference attempt notice:`, err?.message || err);
       return null;
     }
+  }
+
+  // Helper to query local Ollama server if available as a fallback or primary LLM (Sequentially Queued)
+  async function tryOllamaGenerate(prompt: string, isJson: boolean = false): Promise<{ text: string } | null> {
+    return enqueueOllamaTask(async () => {
+      const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+      try {
+        const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(2500) });
+        if (!tagsRes.ok) {
+          return null;
+        }
+        const tagsData = (await tagsRes.json()) as any;
+        const models: any[] = tagsData.models || [];
+        if (!models || models.length === 0) {
+          console.warn(`[Ollama Engine] Reachable at ${ollamaHost}, but no models found. Run "ollama pull llama3.2" in your terminal to load a model.`);
+          return null;
+        }
+
+        const preferredModel = process.env.OLLAMA_MODEL;
+        const modelName = preferredModel || models[0].name || models[0].model || 'llama3.2';
+        console.log(`[Ollama Engine Queue] Processing agent request via local model "${modelName}" at ${ollamaHost}...`);
+
+        const formattedPrompt = isJson
+          ? `${prompt}\n\nCRITICAL INSTRUCTION: Output ONLY valid raw JSON syntax matching the schema requested. No markdown formatting, no conversation.`
+          : prompt;
+
+        const genRes = await fetch(`${ollamaHost}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: modelName,
+            prompt: formattedPrompt,
+            stream: false,
+            format: isJson ? 'json' : undefined,
+            options: {
+              temperature: 0.2,
+              num_ctx: 2048,
+              num_predict: 1024,
+            },
+          }),
+          signal: AbortSignal.timeout(180000), // 3 minutes allowance for local inference on CPU/GPU
+        });
+
+        if (!genRes.ok) {
+          console.warn(`[Ollama Engine] Generate request failed with HTTP ${genRes.status}`);
+          return null;
+        }
+        const genData = (await genRes.json()) as any;
+        if (genData && genData.response) {
+          return { text: genData.response };
+        }
+        return null;
+      } catch (e: any) {
+        console.warn(`[Ollama Engine] Local inference attempt notice: ${e?.message || e}`);
+        return null;
+      }
+    });
   }
 
   function extractPromptString(params: any): string {
@@ -314,8 +442,21 @@ async function startServer() {
     return '';
   }
 
-  // Unified AI Agent execution runner (Gemini API with auto Ollama fallback & quota bypass)
+  // Unified AI Agent execution runner (Gemini API + OpenAI-compatible Router + Ollama local fallback)
   async function generateContentWithRetry(ai: GoogleGenAI | null, params: any) {
+    const promptStr = extractPromptString(params);
+    const isJsonRequested = params?.config?.responseMimeType === 'application/json';
+
+    // 0. Cache Lookup
+    if (promptStr) {
+      const cacheKey = `${isJsonRequested ? 'json' : 'text'}_${promptStr.trim()}`;
+      const cached = agentResponseCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        console.log('[AI Router Cache] Serving cached response for agent prompt');
+        return cached.response;
+      }
+    }
+
     const primaryModel = params.model || 'gemini-3.6-flash';
     const modelsToTry = [primaryModel];
     if (primaryModel === 'gemini-3.6-flash') {
@@ -324,37 +465,43 @@ async function startServer() {
 
     let lastError: any = null;
     const forceOllama = process.env.FORCE_OLLAMA === 'true' || process.env.USE_OLLAMA_FIRST === 'true';
+    const useOpenAiFirst = process.env.USE_OPENAI_FIRST === 'true';
     const isGeminiCoolingOff = Date.now() < geminiQuotaExceededUntil;
 
-    // 1. Run Ollama directly if forced, or if no Gemini key, or if Gemini is cooling off after quota limit (429)
-    if (forceOllama || !ai || isGeminiCoolingOff) {
-      const promptStr = extractPromptString(params);
-      const isJsonRequested = params?.config?.responseMimeType === 'application/json';
+    // 1. Force Ollama local execution
+    if (forceOllama) {
       if (promptStr) {
-        if (isGeminiCoolingOff) {
-          console.log('[AI Router] Gemini API recently hit quota limit (429). Routing directly to local Ollama...');
-        }
         const ollamaRes = await tryOllamaGenerate(promptStr, isJsonRequested);
         if (ollamaRes) return ollamaRes;
       }
     }
 
-    // 2. Try Gemini API models if client exists and not cooling off
+    // 2. Force OpenAI-compatible router (e.g. Groq, OpenRouter, DeepSeek, OpenAI)
+    if (useOpenAiFirst && promptStr) {
+      const openAiRes = await tryOpenAICompatibleGenerate(promptStr, isJsonRequested);
+      if (openAiRes) return openAiRes;
+    }
+
+    // 3. Try Gemini API models if available and not cooling off
     if (ai && !isGeminiCoolingOff) {
       for (const modelName of modelsToTry) {
+        if (Date.now() < geminiQuotaExceededUntil) break; // Exit if another concurrent agent set cool-off
+
         const attemptParams = { ...params, model: modelName };
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
             const response = await ai.models.generateContent(attemptParams);
             if (response) {
+              if (promptStr && response.text) {
+                const cacheKey = `${isJsonRequested ? 'json' : 'text'}_${promptStr.trim()}`;
+                agentResponseCache.set(cacheKey, { response, expiresAt: Date.now() + 5 * 60 * 1000 });
+              }
               return response;
             }
           } catch (err: any) {
             lastError = err;
             const status = err?.status || err?.code || err?.error?.code;
             const msg = String(err?.message || err || '');
-
-            console.warn(`[Gemini API] Model ${modelName} issue (${status || 'error'}): ${msg}`);
 
             const isQuotaExceeded =
               status === 429 ||
@@ -363,10 +510,12 @@ async function startServer() {
               msg.includes('RESOURCE_EXHAUSTED');
 
             if (isQuotaExceeded) {
-              console.warn(`[Gemini API] Model ${modelName} quota limit reached (429). Enabling 45s Gemini cool-off and switching to local Ollama...`);
-              geminiQuotaExceededUntil = Date.now() + 45 * 1000; // 45 second cool-off for rate limit window
-              break;
+              console.warn(`[Gemini API] Quota limit reached (429). Enabling 60s Gemini cool-off and switching to fallback router...`);
+              geminiQuotaExceededUntil = Date.now() + 60 * 1000; // 60s cool-off
+              break; // Stop trying further Gemini models
             }
+
+            console.warn(`[Gemini API] Model ${modelName} attempt ${attempt} notice (${status || 'error'}): ${msg.slice(0, 120)}`);
 
             const isTransient =
               status === 503 ||
@@ -387,18 +536,27 @@ async function startServer() {
       }
     }
 
-    // 3. Fallback to local Ollama if Gemini failed or quota exceeded
-    const promptStr = extractPromptString(params);
-    const isJsonRequested = params?.config?.responseMimeType === 'application/json';
+    // 4. Fallback Router Step A: Try OpenAI-compatible API (Groq / OpenRouter / DeepSeek / OpenAI / Custom Endpoint)
+    if (promptStr) {
+      const openAiRes = await tryOpenAICompatibleGenerate(promptStr, isJsonRequested);
+      if (openAiRes) {
+        const cacheKey = `${isJsonRequested ? 'json' : 'text'}_${promptStr.trim()}`;
+        agentResponseCache.set(cacheKey, { response: openAiRes, expiresAt: Date.now() + 5 * 60 * 1000 });
+        return openAiRes;
+      }
+    }
 
+    // 5. Fallback Router Step B: Try local Ollama server
     if (promptStr) {
       const ollamaResponse = await tryOllamaGenerate(promptStr, isJsonRequested);
       if (ollamaResponse) {
+        const cacheKey = `${isJsonRequested ? 'json' : 'text'}_${promptStr.trim()}`;
+        agentResponseCache.set(cacheKey, { response: ollamaResponse, expiresAt: Date.now() + 5 * 60 * 1000 });
         return ollamaResponse;
       }
     }
 
-    throw lastError || new Error('All AI model generation attempts failed');
+    throw lastError || new Error('All AI model generation attempts failed across Gemini, OpenAI-compatible Router, and Ollama.');
   }
 
   // --- API ROUTE 1: Scouting & Triage Agent (Router / Handoff Node) ---
