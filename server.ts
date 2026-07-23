@@ -108,8 +108,9 @@ async function startServer() {
     const src = (sourceName || '').toLowerCase();
 
     if (src.includes('mycareersfuture')) {
-      // MyCareersFuture search parameter requires searching by job title or keywords without company name
-      return `https://www.mycareersfuture.gov.sg/search?search=${encodeURIComponent(cleanTit)}`;
+      // MyCareersFuture: combine company name and title keywords so searching Grab + role finds direct listings
+      const queryStr = cleanComp ? `${cleanComp} ${cleanTit}`.trim() : cleanTit;
+      return `https://www.mycareersfuture.gov.sg/search?search=${encodeURIComponent(queryStr)}`;
     }
     if (src.includes('jobstreet')) {
       const queryStr = `${cleanTit} ${cleanComp}`.trim();
@@ -119,9 +120,8 @@ async function startServer() {
       const queryStr = `${cleanTit} ${cleanComp}`.trim();
       return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodeURIComponent(queryStr)}`;
     }
-    // LinkedIn Jobs
-    const linkedinQuery = `${cleanTit} ${cleanComp}`.trim();
-    return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(linkedinQuery)}&location=Singapore`;
+    // LinkedIn Jobs: Search by title directly to land on open role listings in Singapore
+    return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(cleanTit)}&location=Singapore`;
   }
 
   // Helper to generate context-aware fallback leads for queries (e.g. Singapore, London, Tokyo, specific titles)
