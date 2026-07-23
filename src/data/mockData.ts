@@ -97,19 +97,19 @@ export const SAMPLE_JOB_LEADS: JobLead[] = [
     title: "Junior Web Developer",
     company: "Local Agency Co",
     location: "Singapore (On-site)",
-    salaryRange: "$42,000 - $55,000 SGD",
-    estimatedSalaryMin: 42000,
-    estimatedSalaryMax: 55000,
+    salaryRange: "$25,000 - $32,500 SGD",
+    estimatedSalaryMin: 25000,
+    estimatedSalaryMax: 32500,
     workType: "On-site",
     visaSupported: false,
     source: "JobStreet SG",
     url: "https://jobstreet.com.sg/job/junior-dev-103",
     description: "Looking for entry-level HTML/CSS dev to build landing pages.",
     matchScore: 28,
-    matchReasoning: "Failed hard criteria: Salary $42k SGD is well below candidate's $120k SGD minimum threshold; level is junior vs target Senior/Staff.",
+    matchReasoning: "Failed hard criteria: Salary $25,000 SGD is below candidate's $40,000 SGD minimum threshold & role seniority mismatch (Junior vs target Senior/Staff).",
     status: "failed_guardrails",
-    rejectionReason: "Guardrail Failure: Salary ($42k SGD) below minimum threshold ($120k SGD) & role seniority mismatch.",
-    postedDate: "3 days ago"
+    rejectionReason: "Guardrail Failure: Salary ($25,000 SGD) below minimum threshold ($40,000 SGD) & role seniority mismatch.",
+    postedDate: "2 days ago"
   }
 ];
 

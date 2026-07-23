@@ -24,14 +24,20 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
   const company2 = isSingapore ? "Shopee / Sea Group" : isLondon ? "Monzo Bank" : "Datadog";
   const company3 = isSingapore ? "Local Digital Agency SG" : "Startup Co";
 
-  const salMin1 = isSingapore ? 140000 : isLondon ? 100000 : 180000;
-  const salMax1 = isSingapore ? 190000 : isLondon ? 140000 : 220000;
-  const salMin2 = isSingapore ? 160000 : isLondon ? 120000 : 200000;
-  const salMax2 = isSingapore ? 220000 : isLondon ? 160000 : 250000;
-  const salMin3 = isSingapore ? 42000 : isLondon ? 32000 : 50000;
-  const salMax3 = isSingapore ? 55000 : isLondon ? 42000 : 65000;
-
   const minThreshold = profile.minSalary || (isSingapore ? 120000 : 150000);
+  const salMin1 = Math.max(isSingapore ? 140000 : 180000, Math.round(minThreshold * 1.25));
+  const salMax1 = Math.round(salMin1 * 1.35);
+  const salMin2 = Math.max(isSingapore ? 160000 : 200000, Math.round(minThreshold * 1.45));
+  const salMax2 = Math.round(salMin2 * 1.35);
+  
+  // Dynamically set lead 3 below candidate threshold to demonstrate guardrail failure cleanly
+  const salMin3 = Math.max(25000, Math.round(minThreshold * 0.65));
+  const salMax3 = Math.round(salMin3 * 1.3);
+
+  const isBelowSalary = salMin3 < minThreshold;
+  const rejectionReason = isBelowSalary
+    ? `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority mismatch (Junior vs Senior/Staff target).`
+    : `Guardrail Failure: Role seniority mismatch (Junior entry-level position vs candidate target Senior/Staff level).`;
 
   return [
     {
@@ -86,9 +92,9 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
       url: isSingapore ? "https://jobstreet.com.sg" : "https://indeed.com",
       description: `Junior entry-level developer position for basic HTML/CSS landing page updates.`,
       matchScore: 28,
-      matchReasoning: `Failed hard criteria guardrail: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}); level is junior vs target Senior/Staff.`,
+      matchReasoning: `Failed hard criteria guardrail: ${rejectionReason}`,
       status: "failed_guardrails",
-      rejectionReason: `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) below minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority mismatch.`,
+      rejectionReason: rejectionReason,
       postedDate: "2 days ago"
     }
   ];
