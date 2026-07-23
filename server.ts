@@ -105,20 +105,24 @@ async function startServer() {
   function generateSearchUrl(title: string, company: string, sourceName?: string): string {
     const cleanComp = cleanTerm(company) || company.trim();
     const cleanTit = cleanTerm(title) || title.trim();
-    const queryStr = `${cleanComp} ${cleanTit}`.trim();
-    const encodedQuery = encodeURIComponent(queryStr);
     const src = (sourceName || '').toLowerCase();
 
     if (src.includes('mycareersfuture')) {
-      return `https://mycareersfuture.gov.sg/search?search=${encodedQuery}`;
+      // MyCareersFuture search URL
+      const queryStr = `${cleanTit} ${cleanComp}`.trim();
+      return `https://www.mycareersfuture.gov.sg/search?search=${encodeURIComponent(queryStr)}`;
     }
     if (src.includes('jobstreet')) {
-      return `https://www.jobstreet.com.sg/jobs?keywords=${encodedQuery}`;
+      const queryStr = `${cleanTit} ${cleanComp}`.trim();
+      return `https://www.jobstreet.com.sg/jobs?keywords=${encodeURIComponent(queryStr)}`;
     }
     if (src.includes('glassdoor')) {
-      return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodedQuery}`;
+      const queryStr = `${cleanTit} ${cleanComp}`.trim();
+      return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodeURIComponent(queryStr)}`;
     }
-    return `https://www.linkedin.com/jobs/search/?keywords=${encodedQuery}&location=Singapore`;
+    // LinkedIn Jobs: Title first, then company (without quotes so LinkedIn doesn't break query formatting)
+    const linkedinQuery = `${cleanTit} ${cleanComp}`.trim();
+    return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(linkedinQuery)}&location=Singapore`;
   }
 
   // Helper to generate context-aware fallback leads for queries (e.g. Singapore, London, Tokyo, specific titles)
