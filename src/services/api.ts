@@ -9,35 +9,48 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
   const currency = isSingapore ? 'SGD' : isLondon ? 'GBP' : profile.currency || 'USD';
   const locationLabel = isSingapore ? 'Singapore (Hybrid)' : isLondon ? 'London, UK (Hybrid)' : 'San Francisco, CA (Hybrid)';
 
-  let title1 = "Senior Full Stack & AI Platform Engineer";
-  let title2 = "Staff Software Engineer - Cloud Systems";
+  // Dynamically derive job titles from candidate targetTitles if provided
+  const targetTitles = profile.targetTitles && profile.targetTitles.length > 0 ? profile.targetTitles : [];
+  
+  let title1 = targetTitles[0] || "Senior Platform & Systems Engineer";
+  let title2 = targetTitles[1] || targetTitles[0] || "Principal Consultant / Lead Engineer";
 
   if (q.includes('data') || q.includes('machine learning') || q.includes('ml')) {
-    title1 = "Senior AI Platform & Machine Learning Engineer";
-    title2 = "Staff Data Infrastructure Architect";
-  } else if (q.includes('backend') || q.includes('go') || q.includes('python')) {
-    title1 = "Senior Distributed Backend Engineer";
-    title2 = "Staff Cloud Systems Engineer";
+    title1 = "Senior AI Platform & Machine Learning Lead";
+    title2 = "Staff Data Architect";
+  } else if (q.includes('energy') || q.includes('sustainability') || q.includes('consultant')) {
+    title1 = targetTitles.find(t => t.toLowerCase().includes('sustainability') || t.toLowerCase().includes('consultant') || t.toLowerCase().includes('energy')) || "Senior Sustainability & Energy Consultant";
+    title2 = targetTitles.find(t => t.toLowerCase().includes('manager') || t.toLowerCase().includes('director')) || "Senior Energy Systems Project Manager";
   }
 
-  const company1 = isSingapore ? "Grab" : isLondon ? "Revolut" : "Stripe";
-  const company2 = isSingapore ? "Shopee / Sea Group" : isLondon ? "Monzo Bank" : "Datadog";
-  const company3 = isSingapore ? "Local Digital Agency SG" : "Startup Co";
+  // Capitalize properly
+  title1 = title1.replace(/\b\w/g, l => l.toUpperCase());
+  title2 = title2.replace(/\b\w/g, l => l.toUpperCase());
 
-  const minThreshold = profile.minSalary || (isSingapore ? 120000 : 150000);
-  const salMin1 = Math.max(isSingapore ? 140000 : 180000, Math.round(minThreshold * 1.25));
+  const keySkillsText = profile.skills && profile.skills.length > 0
+    ? profile.skills.slice(0, 4).join(', ')
+    : 'System Architecture, Leadership, Technical Delivery';
+
+  const isEnergyOrSustainability = (title1 + title2 + keySkillsText).toLowerCase().match(/energy|sustainab|consult|environmental|decarbon/);
+
+  const company1 = isSingapore ? (isEnergyOrSustainability ? "Sembcorp Industries SG" : "Grab") : "Stripe";
+  const company2 = isSingapore ? (isEnergyOrSustainability ? "Keppel Corporation / Infrastructure" : "Shopee / Sea Group") : "Datadog";
+  const company3 = isSingapore ? "Local Small Business SG" : "Startup Co";
+
+  const minThreshold = profile.minSalary || (isSingapore ? 80000 : 120000);
+  const salMin1 = Math.max(isSingapore ? 110000 : 150000, Math.round(minThreshold * 1.2));
   const salMax1 = Math.round(salMin1 * 1.35);
-  const salMin2 = Math.max(isSingapore ? 160000 : 200000, Math.round(minThreshold * 1.45));
+  const salMin2 = Math.max(isSingapore ? 130000 : 170000, Math.round(minThreshold * 1.35));
   const salMax2 = Math.round(salMin2 * 1.35);
   
-  // Dynamically set lead 3 below candidate threshold to demonstrate guardrail failure cleanly
-  const salMin3 = Math.max(25000, Math.round(minThreshold * 0.65));
-  const salMax3 = Math.round(salMin3 * 1.3);
+  // Lead 3 specifically triggers guardrail failure for transparency
+  const salMin3 = Math.max(25000, Math.round(minThreshold * 0.6));
+  const salMax3 = Math.round(salMin3 * 1.25);
 
   const isBelowSalary = salMin3 < minThreshold;
   const rejectionReason = isBelowSalary
-    ? `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority mismatch (Junior vs Senior/Staff target).`
-    : `Guardrail Failure: Role seniority mismatch (Junior entry-level position vs candidate target Senior/Staff level).`;
+    ? `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority level mismatch.`
+    : `Guardrail Failure: Role level mismatch (Junior entry position vs candidate target senior level).`;
 
   return [
     {
@@ -52,9 +65,9 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
       visaSupported: true,
       source: isSingapore ? "MyCareersFuture SG" : "LinkedIn Jobs",
       url: isSingapore ? "https://mycareersfuture.gov.sg" : "https://linkedin.com/jobs",
-      description: `${company1} is hiring a ${title1} in ${locationLabel}. Role focuses on microservices scalability, generative AI workflow integration, and high-throughput React/TypeScript architecture.`,
+      description: `${company1} is seeking a ${title1} in ${locationLabel}. Role focuses on project execution, stakeholder engagement, and expertise in ${keySkillsText}.`,
       matchScore: 96,
-      matchReasoning: `Strong match with candidate's 8+ years experience, system architecture background, and location match (${locationLabel}).`,
+      matchReasoning: `Strong alignment with candidate target titles (${title1}), core skills (${keySkillsText}), and minimum salary threshold.`,
       status: "routed_to_intel",
       rejectionReason: "",
       postedDate: "Just now"
@@ -71,16 +84,16 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
       visaSupported: true,
       source: isSingapore ? "LinkedIn Singapore" : "Glassdoor",
       url: isSingapore ? "https://linkedin.com/jobs" : "https://glassdoor.com",
-      description: `${company2} is expanding its core engineering hub in ${locationLabel}. Looking for ${title2} experienced in high-frequency backend services, Kubernetes, and reactive platforms.`,
-      matchScore: 93,
-      matchReasoning: `High compatibility with distributed systems expertise, containerization, and competitive salary structure.`,
+      description: `${company2} is expanding its strategic team in ${locationLabel}. Looking for a ${title2} experienced in cross-functional strategy, data analysis, and ${keySkillsText}.`,
+      matchScore: 92,
+      matchReasoning: `High compatibility with candidate target titles and domain background in ${keySkillsText}.`,
       status: "passed_guardrails",
       rejectionReason: "",
       postedDate: "1 day ago"
     },
     {
       id: `lead-client-${Date.now()}-3`,
-      title: "Junior Frontend Web Developer",
+      title: "Junior Entry Assistant",
       company: company3,
       location: isSingapore ? "Singapore (On-site)" : locationLabel,
       salaryRange: `$${salMin3.toLocaleString()} - $${salMax3.toLocaleString()} ${currency}`,
@@ -90,8 +103,8 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
       visaSupported: false,
       source: isSingapore ? "JobStreet SG" : "Indeed",
       url: isSingapore ? "https://jobstreet.com.sg" : "https://indeed.com",
-      description: `Junior entry-level developer position for basic HTML/CSS landing page updates.`,
-      matchScore: 28,
+      description: `Junior entry-level administrative and basic research assistant position.`,
+      matchScore: 25,
       matchReasoning: `Failed hard criteria guardrail: ${rejectionReason}`,
       status: "failed_guardrails",
       rejectionReason: rejectionReason,

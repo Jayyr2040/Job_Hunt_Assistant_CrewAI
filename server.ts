@@ -417,7 +417,10 @@ async function startServer() {
         }
         return null;
       } catch (e: any) {
-        console.warn(`[Ollama Engine] Local inference timeout/notice: ${e?.message || e}`);
+        const msg = String(e?.message || e || '');
+        if (!msg.includes('fetch failed') && !msg.includes('ECONNREFUSED')) {
+          console.warn(`[Ollama Engine] Local inference notice: ${msg.slice(0, 100)}`);
+        }
         return null;
       }
     });
@@ -565,41 +568,55 @@ async function startServer() {
       const { profile, searchQuery } = req.body;
       const ai = getGeminiClient();
 
-      const searchIntent = searchQuery || 'Recent high-fit Senior/Staff engineering roles';
+      const targetTitlesList = (profile?.targetTitles && profile.targetTitles.length > 0)
+        ? profile.targetTitles.join(', ')
+        : 'Senior Roles';
+      const primaryLocation = (profile?.locations && profile.locations.length > 0)
+        ? profile.locations[0]
+        : 'Singapore';
+      const keySkillsList = (profile?.skills && profile.skills.length > 0)
+        ? profile.skills.slice(0, 5).join(', ')
+        : '';
+
+      const searchIntent = searchQuery || `Active listings for ${targetTitlesList} in ${primaryLocation} requiring skills like ${keySkillsList}`;
 
       const prompt = `You are the "Scouting & Triage Agent" in a CrewAI multi-agent job hunt system.
-Role: Use Google Search Grounding to discover REAL, ACTIVE job listings matching the user's search query and candidate profile, evaluate role fit, enforce guardrails, and route viable leads.
+Role: Use search tools to discover REAL, ACTIVE job listings strictly matching the user's search query and candidate's target titles and profile, evaluate role fit, enforce guardrails, and route viable leads.
 
 SEARCH INTENT QUERY: "${searchIntent}"
+CANDIDATE TARGET TITLES: ${JSON.stringify(profile?.targetTitles || [])}
+CANDIDATE SKILLS & EXPERTISE: ${JSON.stringify(profile?.skills || [])}
 
 CRITICAL LOCATION & CURRENCY DIRECTIVE:
-1. Pay strict attention to any location specified in the search query (e.g., "Singapore", "San Francisco", "London", "Remote") or candidate preferred locations: ${JSON.stringify(profile?.locations || [])}.
-2. IF THE SEARCH QUERY MENTIONS "Singapore" OR "SG":
-   - Find REAL current tech job listings in Singapore (e.g. at companies like Grab, Shopee, DBS Bank, ByteDance Singapore, Google Singapore, Stripe Singapore, Lazada, Sea Group, Rakuten, Foodpanda, GovTech Singapore, etc.).
+1. Pay strict attention to any location specified in search query or candidate preferred locations: ${JSON.stringify(profile?.locations || ['Singapore'])}.
+2. IF THE SEARCH QUERY OR CANDIDATE LOCATION MENTIONS "Singapore" OR "SG":
+   - Find REAL current job listings in Singapore matching candidate target titles (${JSON.stringify(profile?.targetTitles || [])}).
+   - For engineering/energy/sustainability roles in Singapore, consider top employers like Sembcorp, Keppel, Singapore Airlines, Keppel Infrastructure, EMA, GovTech Singapore, DBS Bank, Grab, Shopee, Schneider Electric, ExxonMobil SG, Shell SG, etc.
    - Set locations like "Singapore", "Singapore (Hybrid)", or "Singapore (On-site)".
-   - Set salary ranges in SGD or USD (e.g., "$120,000 - $180,000 SGD" or "$140,000 - $200,000 USD").
+   - Set salary ranges in SGD (e.g., "$100,000 - $180,000 SGD").
    - Set sources like "MyCareersFuture SG", "LinkedIn Singapore", "JobStreet SG", or "Glassdoor".
 
 CANDIDATE PROFILE:
 - Name: ${profile?.name || 'Candidate'}
 - Target Titles: ${JSON.stringify(profile?.targetTitles || [])}
-- Minimum Salary Threshold: ${profile?.currency || 'USD'} ${profile?.minSalary || 150000}
+- Minimum Salary Threshold: ${profile?.currency || 'SGD'} ${profile?.minSalary || 80000}
 - Work Authorization: ${profile?.workAuthorization || 'Citizen'}
 - Key Skills: ${JSON.stringify(profile?.skills || [])}
+- Executive Summary: ${profile?.executiveSummary || ''}
 
 STRICT GUARDRAILS:
-1. Hard Criteria Filter: ANY job with estimated salary below $${profile?.minSalary || 150000} (or local currency equivalent) or requiring unsupported visa sponsorship MUST fail hard criteria (status = "failed_guardrails").
-2. Role Level Mismatch: Junior roles for Senior candidate must fail.
+1. Hard Criteria Filter: ANY job with estimated salary below $${profile?.minSalary || 80000} (or local currency equivalent) or requiring unsupported visa sponsorship MUST fail hard criteria (status = "failed_guardrails").
+2. Target Role Fit: Jobs MUST match candidate's target titles (${JSON.stringify(profile?.targetTitles || [])}) or core domain skills.
+3. Show at least 1 lead that fails guardrails (e.g. salary below threshold or junior level) for transparency.
 
-Conduct a web search for live openings matching "${searchIntent}".
-Provide 3-4 job leads (include passing leads matching the requested location, and at least 1 lead that triggers a guardrail failure for transparency).
+Provide 3-4 job leads matching candidate target titles and location.
 
 Return a JSON array of jobs. Detail the facts for each job:
 - id: string (e.g., "job-sg-101")
 - title: string
 - company: string
-- location: string (e.g., "Singapore (Hybrid)", "San Francisco, CA", etc.)
-- salaryRange: string (e.g., "$130,000 - $180,000 SGD")
+- location: string (e.g., "Singapore (Hybrid)", "Singapore", etc.)
+- salaryRange: string (e.g., "$100,000 - $160,000 SGD")
 - estimatedSalaryMin: number
 - estimatedSalaryMax: number
 - workType: "Remote" | "Hybrid" | "On-site"

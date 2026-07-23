@@ -480,16 +480,36 @@ export default function App() {
         candidate={candidate}
         isOpen={isVaultOpen}
         onClose={() => setIsVaultOpen(false)}
-        onSave={(updated) => {
+        onSave={async (updated) => {
           setCandidate(updated);
           addLog(
             'scout',
             `Updated Master Candidate Profile (${updated.name})`,
             'info',
             'profile_updater',
-            `New Min Salary: $${updated.minSalary}`,
-            'Guardrails re-grounded.'
+            `Target Titles: ${updated.targetTitles.slice(0, 3).join(', ')} | Min Salary: $${updated.minSalary}`,
+            'Re-scouting job leads for updated target titles and guardrails...'
           );
+
+          // Automatically re-scout jobs matching the updated profile & target titles
+          setIsScoutingLoading(true);
+          try {
+            const freshLeads = await scoutJobs(updated);
+            setJobLeads(freshLeads);
+            const passed = freshLeads.find((l) => l.status !== 'failed_guardrails') || freshLeads[0];
+            if (passed) {
+              setSelectedLead(passed);
+            }
+            addLog(
+              'scout',
+              `Re-grounded scouting complete: Loaded ${freshLeads.length} leads matching ${updated.targetTitles[0] || 'Target Roles'}`,
+              'success'
+            );
+          } catch (err: any) {
+            addLog('scout', `Re-scout error: ${err.message}`, 'error');
+          } finally {
+            setIsScoutingLoading(false);
+          }
         }}
       />
     </div>
