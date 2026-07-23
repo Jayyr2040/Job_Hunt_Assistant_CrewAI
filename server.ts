@@ -185,14 +185,14 @@ async function startServer() {
     const primaryModel = params.model || 'gemini-3.6-flash';
     const modelsToTry = [primaryModel];
     if (primaryModel === 'gemini-3.6-flash') {
-      modelsToTry.push('gemini-3.1-pro-preview', 'gemini-flash-latest');
+      modelsToTry.push('gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest');
     }
 
     let lastError: any = null;
 
     for (const modelName of modelsToTry) {
       const attemptParams = { ...params, model: modelName };
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           const response = await ai.models.generateContent(attemptParams);
           if (response) {
@@ -214,18 +214,28 @@ async function startServer() {
             throw err;
           }
 
+          const isQuotaExceeded =
+            status === 429 ||
+            msg.includes('quota') ||
+            msg.includes('429') ||
+            msg.includes('RESOURCE_EXHAUSTED');
+
+          if (isQuotaExceeded) {
+            console.warn(`[Gemini API] Model ${modelName} quota limit reached (429). Trying fallback...`);
+            break; // Skip further retries on this model and try next model
+          }
+
           const isTransient =
             status === 503 ||
-            status === 429 ||
             status === 'UNAVAILABLE' ||
             msg.includes('demand') ||
             msg.includes('503') ||
             msg.includes('overloaded') ||
             msg.includes('UNAVAILABLE');
 
-          if (isTransient && attempt < 3) {
-            const delay = attempt * 1000;
-            console.warn(`[Gemini API] Retry attempt ${attempt} for model ${modelName} due to transient error: ${msg}`);
+          if (isTransient && attempt < 2) {
+            const delay = attempt * 800;
+            console.warn(`[Gemini API] Retry attempt ${attempt} for model ${modelName} due to transient error (503): ${msg}`);
             await new Promise((resolve) => setTimeout(resolve, delay));
             continue;
           }
