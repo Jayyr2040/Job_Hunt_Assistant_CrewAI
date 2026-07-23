@@ -93,8 +93,8 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
     const src = (sourceName || '').toLowerCase();
 
     if (src.includes('mycareersfuture')) {
-      const queryStr = `${cleanTit} ${cleanComp}`.trim();
-      return `https://www.mycareersfuture.gov.sg/search?search=${encodeURIComponent(queryStr)}`;
+      // MyCareersFuture search parameter requires searching by job title or keywords without company name
+      return `https://www.mycareersfuture.gov.sg/search?search=${encodeURIComponent(cleanTit)}`;
     }
     if (src.includes('jobstreet')) {
       const queryStr = `${cleanTit} ${cleanComp}`.trim();
@@ -104,7 +104,7 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
       const queryStr = `${cleanTit} ${cleanComp}`.trim();
       return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodeURIComponent(queryStr)}`;
     }
-    // LinkedIn Jobs: Title first, then company (without quotes so LinkedIn doesn't break query formatting)
+    // LinkedIn Jobs
     const linkedinQuery = `${cleanTit} ${cleanComp}`.trim();
     return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(linkedinQuery)}&location=Singapore`;
   }

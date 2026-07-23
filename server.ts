@@ -108,9 +108,8 @@ async function startServer() {
     const src = (sourceName || '').toLowerCase();
 
     if (src.includes('mycareersfuture')) {
-      // MyCareersFuture search URL
-      const queryStr = `${cleanTit} ${cleanComp}`.trim();
-      return `https://www.mycareersfuture.gov.sg/search?search=${encodeURIComponent(queryStr)}`;
+      // MyCareersFuture search parameter requires searching by job title or keywords without company name
+      return `https://www.mycareersfuture.gov.sg/search?search=${encodeURIComponent(cleanTit)}`;
     }
     if (src.includes('jobstreet')) {
       const queryStr = `${cleanTit} ${cleanComp}`.trim();
@@ -120,7 +119,7 @@ async function startServer() {
       const queryStr = `${cleanTit} ${cleanComp}`.trim();
       return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodeURIComponent(queryStr)}`;
     }
-    // LinkedIn Jobs: Title first, then company (without quotes so LinkedIn doesn't break query formatting)
+    // LinkedIn Jobs
     const linkedinQuery = `${cleanTit} ${cleanComp}`.trim();
     return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(linkedinQuery)}&location=Singapore`;
   }
@@ -870,7 +869,8 @@ JSON Array output:`;
       if (Array.isArray(rawLeads) && rawLeads.length > 0) {
         const leads = rawLeads.map((l: any) => {
           let u = l.url || '';
-          if (!u || u.endsWith('.gov.sg') || u.endsWith('.com') || u.endsWith('.com.sg') || u.endsWith('/jobs') || u.includes('search') || u.includes('linkedin.com')) {
+          const isDirectUrl = u.includes('/view/') || u.includes('/job/') || u.includes('currentJobId=');
+          if (!u || (!isDirectUrl && (u.endsWith('.gov.sg') || u.endsWith('.com') || u.endsWith('.com.sg') || u.endsWith('/jobs') || u.includes('search') || u.includes('linkedin.com')))) {
             u = generateSearchUrl(l.title || '', l.company || '', l.source || '');
           }
           return { ...l, url: u };
