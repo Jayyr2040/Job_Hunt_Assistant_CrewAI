@@ -185,7 +185,7 @@ async function startServer() {
     const primaryModel = params.model || 'gemini-3.6-flash';
     const modelsToTry = [primaryModel];
     if (primaryModel === 'gemini-3.6-flash') {
-      modelsToTry.push('gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest');
+      modelsToTry.push('gemini-3.1-flash-lite', 'gemini-flash-latest');
     }
 
     let lastError: any = null;
