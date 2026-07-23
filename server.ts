@@ -17,20 +17,55 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
 
   // Shared Gemini client helper
-  function getGeminiClient() {
+  function getGeminiClient(): GoogleGenAI | null {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey.trim() === '' || apiKey === 'dummy-key-for-dev') {
-      throw new Error('GEMINI_API_KEY_NOT_CONFIGURED: GEMINI_API_KEY environment variable is not set.');
+      return null;
     }
-    return new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
+    try {
+      return new GoogleGenAI({
+        apiKey: apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
         },
-      },
-    });
+      });
+    } catch (err) {
+      return null;
+    }
   }
+
+  // System status endpoint to inspect configured models & Ollama connectivity
+  app.get('/api/system-status', async (req, res) => {
+    const hasGemini = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'dummy-key-for-dev');
+    const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+    let ollamaStatus = 'offline';
+    let ollamaModels: string[] = [];
+
+    try {
+      const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(1500) });
+      if (tagsRes.ok) {
+        const data = (await tagsRes.json()) as any;
+        ollamaModels = (data.models || []).map((m: any) => m.name || m.model);
+        ollamaStatus = 'online';
+      }
+    } catch (e) {
+      ollamaStatus = 'offline';
+    }
+
+    res.json({
+      geminiConfigured: hasGemini,
+      ollamaStatus,
+      ollamaHost,
+      ollamaModels,
+      activeEngine: process.env.FORCE_OLLAMA === 'true'
+        ? 'Ollama Local'
+        : hasGemini
+          ? 'Gemini API (with Ollama Fallback)'
+          : 'Ollama Local / Contextual Fallback Engine',
+    });
+  });
 
   // Helper to generate context-aware fallback leads for queries (e.g. Singapore, London, Tokyo, specific titles)
   function generateFallbackLeadsForQuery(profile: any, query: string) {
@@ -203,21 +238,27 @@ async function startServer() {
     }
   }
 
-  // Helper to query local Ollama server if available as a fallback when Gemini is unavailable or quota limited
+  // Helper to query local Ollama server if available as a fallback or primary LLM
   async function tryOllamaGenerate(prompt: string, isJson: boolean = false): Promise<{ text: string } | null> {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
     try {
-      const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(1500) });
-      if (!tagsRes.ok) return null;
+      const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(2000) });
+      if (!tagsRes.ok) {
+        return null;
+      }
       const tagsData = (await tagsRes.json()) as any;
       const models: any[] = tagsData.models || [];
-      if (!models || models.length === 0) return null;
+      if (!models || models.length === 0) {
+        console.warn(`[Ollama Engine] Reachable at ${ollamaHost}, but no models found. Run "ollama pull llama3.2" to download a model.`);
+        return null;
+      }
 
-      const modelName = models[0].name || models[0].model || 'llama3.2';
-      console.log(`[Ollama Fallback] Gemini API unavailable/quota-limited. Calling local Ollama model "${modelName}" at ${ollamaHost}...`);
+      const preferredModel = process.env.OLLAMA_MODEL;
+      const modelName = preferredModel || models[0].name || models[0].model || 'llama3.2';
+      console.log(`[Ollama Engine] Processing agent request via local Ollama model "${modelName}" at ${ollamaHost}...`);
 
       const formattedPrompt = isJson
-        ? `${prompt}\n\nIMPORTANT: Output ONLY valid raw JSON without extra commentary or markdown formatting.`
+        ? `${prompt}\n\nCRITICAL DIRECTIVE: Output ONLY valid raw JSON syntax. Do NOT wrap in markdown backticks (\`\`\`json). Do NOT add conversational text.`
         : prompt;
 
       const genRes = await fetch(`${ollamaHost}/api/generate`, {
@@ -229,11 +270,11 @@ async function startServer() {
           stream: false,
           format: isJson ? 'json' : undefined,
         }),
-        signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(90000),
       });
 
       if (!genRes.ok) {
-        console.warn(`[Ollama Fallback] Ollama generate response not OK (${genRes.status})`);
+        console.warn(`[Ollama Engine] Ollama generate failed with status ${genRes.status}`);
         return null;
       }
       const genData = (await genRes.json()) as any;
@@ -242,13 +283,32 @@ async function startServer() {
       }
       return null;
     } catch (e: any) {
-      console.warn(`[Ollama Fallback] Ollama request failed: ${e?.message || e}`);
+      console.warn(`[Ollama Engine] Ollama connection/generation attempt: ${e?.message || e}`);
       return null;
     }
   }
 
-  // Helper to retry Gemini calls with exponential backoff & fallback models on transient errors (e.g. 503 high demand)
-  async function generateContentWithRetry(ai: GoogleGenAI, params: any) {
+  function extractPromptString(params: any): string {
+    if (typeof params?.contents === 'string') {
+      return params.contents;
+    }
+    if (Array.isArray(params?.contents)) {
+      return params.contents
+        .map((item: any) => {
+          if (typeof item === 'string') return item;
+          if (item?.parts) return item.parts.map((p: any) => p.text || '').join('\n');
+          return JSON.stringify(item);
+        })
+        .join('\n');
+    }
+    if (params?.contents) {
+      return JSON.stringify(params.contents);
+    }
+    return '';
+  }
+
+  // Unified AI Agent execution runner (Gemini API with auto Ollama fallback)
+  async function generateContentWithRetry(ai: GoogleGenAI | null, params: any) {
     const primaryModel = params.model || 'gemini-3.6-flash';
     const modelsToTry = [primaryModel];
     if (primaryModel === 'gemini-3.6-flash') {
@@ -256,78 +316,67 @@ async function startServer() {
     }
 
     let lastError: any = null;
+    const forceOllama = process.env.FORCE_OLLAMA === 'true' || process.env.USE_OLLAMA_FIRST === 'true';
 
-    for (const modelName of modelsToTry) {
-      const attemptParams = { ...params, model: modelName };
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const response = await ai.models.generateContent(attemptParams);
-          if (response) {
-            return response;
+    // 1. If FORCE_OLLAMA is active or no Gemini AI client is configured, run Ollama directly
+    if (forceOllama || !ai) {
+      const promptStr = extractPromptString(params);
+      const isJsonRequested = params?.config?.responseMimeType === 'application/json';
+      if (promptStr) {
+        const ollamaRes = await tryOllamaGenerate(promptStr, isJsonRequested);
+        if (ollamaRes) return ollamaRes;
+      }
+    }
+
+    // 2. Try Gemini API models if client exists
+    if (ai) {
+      for (const modelName of modelsToTry) {
+        const attemptParams = { ...params, model: modelName };
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const response = await ai.models.generateContent(attemptParams);
+            if (response) {
+              return response;
+            }
+          } catch (err: any) {
+            lastError = err;
+            const status = err?.status || err?.code || err?.error?.code;
+            const msg = String(err?.message || err || '');
+
+            console.warn(`[Gemini API] Model ${modelName} attempt ${attempt} issue (${status || 'error'}): ${msg}`);
+
+            const isQuotaExceeded =
+              status === 429 ||
+              msg.includes('quota') ||
+              msg.includes('429') ||
+              msg.includes('RESOURCE_EXHAUSTED');
+
+            if (isQuotaExceeded) {
+              console.warn(`[Gemini API] Model ${modelName} quota limit reached (429). Trying fallback...`);
+              break;
+            }
+
+            const isTransient =
+              status === 503 ||
+              status === 'UNAVAILABLE' ||
+              msg.includes('demand') ||
+              msg.includes('503') ||
+              msg.includes('overloaded') ||
+              msg.includes('UNAVAILABLE');
+
+            if (isTransient && attempt < 2) {
+              const delay = attempt * 800;
+              await new Promise((resolve) => setTimeout(resolve, delay));
+              continue;
+            }
+            break;
           }
-        } catch (err: any) {
-          lastError = err;
-          const status = err?.status || err?.code || err?.error?.code;
-          const msg = String(err?.message || err || '');
-
-          const isApiKeyInvalid =
-            status === 400 ||
-            msg.includes('API key not valid') ||
-            msg.includes('API_KEY_INVALID') ||
-            msg.includes('GEMINI_API_KEY_NOT_CONFIGURED') ||
-            msg.includes('INVALID_ARGUMENT');
-
-          if (isApiKeyInvalid) {
-            throw err;
-          }
-
-          const isQuotaExceeded =
-            status === 429 ||
-            msg.includes('quota') ||
-            msg.includes('429') ||
-            msg.includes('RESOURCE_EXHAUSTED');
-
-          if (isQuotaExceeded) {
-            console.warn(`[Gemini API] Model ${modelName} quota limit reached (429). Trying fallback...`);
-            break; // Skip further retries on this model and try next model
-          }
-
-          const isTransient =
-            status === 503 ||
-            status === 'UNAVAILABLE' ||
-            msg.includes('demand') ||
-            msg.includes('503') ||
-            msg.includes('overloaded') ||
-            msg.includes('UNAVAILABLE');
-
-          if (isTransient && attempt < 2) {
-            const delay = attempt * 800;
-            console.warn(`[Gemini API] Retry attempt ${attempt} for model ${modelName} due to transient error (503): ${msg}`);
-            await new Promise((resolve) => setTimeout(resolve, delay));
-            continue;
-          }
-          console.warn(`[Gemini API] Model ${modelName} failed on attempt ${attempt}: ${msg}`);
-          break;
         }
       }
     }
 
-    // Extract prompt string for Ollama
-    let promptStr = '';
-    if (typeof params?.contents === 'string') {
-      promptStr = params.contents;
-    } else if (Array.isArray(params?.contents)) {
-      promptStr = params.contents
-        .map((item: any) => {
-          if (typeof item === 'string') return item;
-          if (item?.parts) return item.parts.map((p: any) => p.text || '').join('\n');
-          return JSON.stringify(item);
-        })
-        .join('\n');
-    } else if (params?.contents) {
-      promptStr = JSON.stringify(params.contents);
-    }
-
+    // 3. Fallback to local Ollama if Gemini failed or quota exceeded
+    const promptStr = extractPromptString(params);
     const isJsonRequested = params?.config?.responseMimeType === 'application/json';
 
     if (promptStr) {
@@ -337,7 +386,7 @@ async function startServer() {
       }
     }
 
-    throw lastError || new Error('All Gemini API attempts failed');
+    throw lastError || new Error('All AI model generation attempts failed');
   }
 
   // --- API ROUTE 1: Scouting & Triage Agent (Router / Handoff Node) ---
