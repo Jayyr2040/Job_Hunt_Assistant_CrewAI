@@ -93,47 +93,94 @@ async function startServer() {
 
   // Helper to generate context-aware fallback leads for queries (e.g. Singapore, London, Tokyo, specific titles)
   function generateFallbackLeadsForQuery(profile: any, query: string) {
-    const q = (query || '').toLowerCase();
-    const isSingapore = q.includes('singapore') || q.includes('sg') || (profile?.locations || []).some((l: string) => l.toLowerCase().includes('singapore'));
-    const isLondon = q.includes('london') || q.includes('uk');
-    const isTokyo = q.includes('tokyo') || q.includes('japan');
+    const rawQ = (query || '').trim();
+    const qLower = rawQ.toLowerCase();
+
+    // Clean location keywords from query to extract clean role name
+    const cleanedRoleQuery = rawQ
+      .replace(/\s*(in|at|for|near)\s+(singapore|sg|london|tokyo|japan|san francisco|sf|usa|remote|hybrid)\b/gi, '')
+      .replace(/\b(singapore|sg|london|tokyo|japan|san francisco|sf|usa|remote|hybrid)\b/gi, '')
+      .trim();
+
+    const isSingapore = qLower.includes('singapore') || qLower.includes('sg') || (profile?.locations || []).some((l: string) => l.toLowerCase().includes('singapore'));
+    const isLondon = qLower.includes('london') || qLower.includes('uk');
+    const isTokyo = qLower.includes('tokyo') || qLower.includes('japan');
 
     const currency = isSingapore ? 'SGD' : isLondon ? 'GBP' : isTokyo ? 'JPY' : profile?.currency || 'USD';
     const locationLabel = isSingapore ? 'Singapore (Hybrid)' : isLondon ? 'London, UK (Hybrid)' : isTokyo ? 'Tokyo, Japan (On-site)' : 'San Francisco, CA (Hybrid)';
 
-    let title1 = "Senior Full Stack & AI Platform Engineer";
-    let title2 = "Staff Software Engineer - Cloud Systems";
-    let title3 = "Junior Frontend Web Developer";
+    const targetTitles: string[] = (profile?.targetTitles && profile.targetTitles.length > 0)
+      ? profile.targetTitles
+      : ["Senior Engineer", "Technical Director"];
 
-    if (q.includes('data') || q.includes('machine learning') || q.includes('ml') || q.includes('ai')) {
-      title1 = "Senior AI Platform & Full Stack Engineer";
-      title2 = "Staff Data Platform Engineer";
-    } else if (q.includes('backend') || q.includes('go') || q.includes('python')) {
-      title1 = "Senior Distributed Backend Engineer";
-      title2 = "Staff Cloud Systems Architect";
-    } else if (q.includes('frontend') || q.includes('react')) {
-      title1 = "Senior Lead Frontend Architect";
-      title2 = "Staff UI Systems Engineer";
+    let title1 = "";
+    let title2 = "";
+    let title3 = "";
+
+    if (cleanedRoleQuery.length >= 3) {
+      // Use clean search query as primary lead title
+      title1 = cleanedRoleQuery.replace(/\b\w/g, (l: string) => l.toUpperCase());
+      title2 = (targetTitles.find(t => t.toLowerCase() !== cleanedRoleQuery.toLowerCase()) || targetTitles[0] || `Principal ${title1}`)
+        .replace(/\b\w/g, (l: string) => l.toUpperCase());
+      title3 = `Junior ${title1.replace(/^Senior\s+|^Staff\s+|^Principal\s+|^Lead\s+/i, '')}`;
+    } else {
+      // Fallback to profile target titles
+      title1 = (targetTitles[0] || "Senior Consultant & Systems Manager").replace(/\b\w/g, (l: string) => l.toUpperCase());
+      title2 = (targetTitles[1] || targetTitles[0] || "Principal Energy & Technology Lead").replace(/\b\w/g, (l: string) => l.toUpperCase());
+      title3 = `Junior ${title1.replace(/^Senior\s+|^Staff\s+|^Principal\s+|^Lead\s+/i, '')}`;
     }
 
-    const company1 = isSingapore ? "Grab" : isLondon ? "Revolut" : isTokyo ? "Mercari" : "Stripe";
-    const company2 = isSingapore ? "Shopee / Sea Group" : isLondon ? "Monzo Bank" : isTokyo ? "Rakuten" : "Datadog";
-    const company3 = isSingapore ? "Local Digital Agency SG" : isLondon ? "London Tech Agency" : isTokyo ? "Tokyo Web Studio" : "Startup Co";
+    const skillsList = (profile?.skills && profile.skills.length > 0)
+      ? profile.skills.slice(0, 4).join(', ')
+      : 'Project Execution, Stakeholder Management, Strategic Delivery';
 
-    const minThreshold = profile?.minSalary || (isSingapore ? 120000 : 150000);
-    const salMin1 = Math.max(isSingapore ? 140000 : 180000, Math.round(minThreshold * 1.25));
+    const fullDomainContext = (title1 + ' ' + title2 + ' ' + skillsList + ' ' + (profile?.executiveSummary || '') + ' ' + qLower).toLowerCase();
+
+    const isEnergyOrSustain = fullDomainContext.match(/energy|sustainab|consult|environ|decarbon|climate|solar|grid/);
+    const isPublicGovOrDirector = fullDomainContext.match(/director|assistant director|gov|ministry|public|policy|agency/);
+
+    let company1 = "Grab";
+    let company2 = "Shopee / Sea Group";
+    let company3 = "Local Enterprise SG";
+
+    if (isSingapore) {
+      if (isEnergyOrSustain) {
+        company1 = "Sembcorp Industries SG";
+        company2 = "Keppel Corporation / Keppel Infrastructure";
+        company3 = "EcoVadis SG";
+      } else if (isPublicGovOrDirector) {
+        company1 = "GovTech Singapore / Ministry of Sustainability";
+        company2 = "DBS Bank - Enterprise Strategy & Transformation";
+        company3 = "SG Regional Advisory Services";
+      }
+    } else if (isLondon) {
+      company1 = "Revolut";
+      company2 = "Monzo Bank";
+      company3 = "London Tech Studio";
+    } else if (isTokyo) {
+      company1 = "Mercari";
+      company2 = "Rakuten Group";
+      company3 = "Tokyo Web Inc";
+    } else {
+      company1 = "Stripe";
+      company2 = "Datadog";
+      company3 = "Bay Area Startup Co";
+    }
+
+    const minThreshold = profile?.minSalary || (isSingapore ? 80000 : 120000);
+    const salMin1 = Math.max(isSingapore ? 110000 : 150000, Math.round(minThreshold * 1.2));
     const salMax1 = Math.round(salMin1 * 1.35);
-    const salMin2 = Math.max(isSingapore ? 160000 : 200000, Math.round(minThreshold * 1.45));
+    const salMin2 = Math.max(isSingapore ? 130000 : 170000, Math.round(minThreshold * 1.35));
     const salMax2 = Math.round(salMin2 * 1.35);
     
     // Ensure lead 3 is explicitly below candidate's min threshold to demonstrate guardrails
-    const salMin3 = Math.max(25000, Math.round(minThreshold * 0.65));
-    const salMax3 = Math.round(salMin3 * 1.3);
+    const salMin3 = Math.max(25000, Math.round(minThreshold * 0.6));
+    const salMax3 = Math.round(salMin3 * 1.25);
 
     const isBelowSalary = salMin3 < minThreshold;
     const rejectionReason = isBelowSalary
-      ? `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority mismatch (Junior vs Senior/Staff target).`
-      : `Guardrail Failure: Role seniority mismatch (Junior entry-level position vs candidate target Senior/Staff level).`;
+      ? `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority level mismatch.`
+      : `Guardrail Failure: Role seniority mismatch (Junior entry position vs candidate target senior level).`;
 
     return [
       {
@@ -148,9 +195,9 @@ async function startServer() {
         visaSupported: true,
         source: isSingapore ? "MyCareersFuture SG" : "LinkedIn Jobs",
         url: isSingapore ? "https://mycareersfuture.gov.sg" : "https://linkedin.com/jobs",
-        description: `${company1} is seeking a ${title1} in ${locationLabel}. Role focuses on microservices scalability, generative AI workflow integration, and high-throughput TypeScript/Node.js architecture.`,
+        description: `${company1} is seeking a ${title1} in ${locationLabel}. Role focuses on strategic delivery, stakeholder management, and expertise in ${skillsList}.`,
         matchScore: 96,
-        matchReasoning: `Strong match with candidate's 8+ years experience, system architecture background, and location match (${locationLabel}).`,
+        matchReasoning: `Strong alignment with candidate target titles (${title1}), skills (${skillsList}), and salary expectations.`,
         status: "routed_to_intel",
         rejectionReason: "",
         postedDate: "Just now"
@@ -167,9 +214,9 @@ async function startServer() {
         visaSupported: true,
         source: isSingapore ? "LinkedIn Singapore" : "Glassdoor",
         url: isSingapore ? "https://linkedin.com/jobs" : "https://glassdoor.com",
-        description: `${company2} is expanding its core engineering division in ${locationLabel}. Looking for ${title2} experienced in high-frequency backend services, Kubernetes, and reactive frontend platforms.`,
-        matchScore: 93,
-        matchReasoning: `High compatibility with distributed systems expertise, containerization, and competitive salary structure.`,
+        description: `${company2} is expanding its core strategic team in ${locationLabel}. Looking for ${title2} experienced in cross-functional leadership, client advisory, and ${skillsList}.`,
+        matchScore: 92,
+        matchReasoning: `High compatibility with target domain background, senior experience level, and salary guardrails.`,
         status: "passed_guardrails",
         rejectionReason: "",
         postedDate: "1 day ago"
@@ -186,8 +233,8 @@ async function startServer() {
         visaSupported: false,
         source: isSingapore ? "JobStreet SG" : "Indeed",
         url: isSingapore ? "https://jobstreet.com.sg" : "https://indeed.com",
-        description: `Junior entry-level developer position for basic HTML/CSS landing page updates.`,
-        matchScore: 28,
+        description: `Junior entry-level administrative and basic research assistant position.`,
+        matchScore: 25,
         matchReasoning: `Failed hard criteria guardrail: ${rejectionReason}`,
         status: "failed_guardrails",
         rejectionReason: rejectionReason,
@@ -824,35 +871,38 @@ ${rawText}`;
 
   // Helper fallback for Interview Question Generator
   function generateFallbackInterviewQuestion(jobTitle?: string, companyName?: string, questionIndex?: number) {
+    const company = companyName || 'our engineering team';
+    const role = jobTitle || 'Senior Role';
+
     const questions = [
       {
         category: "System Design & Architecture",
-        questionText: `At ${companyName || 'our engineering hub'}, how would you design a high-throughput, sub-100ms API for streaming multi-agent workflows while handling transient rate-limits and network failures?`,
-        focusArea: "System Scalability, Resilience & Fault Tolerance",
+        questionText: `At ${company}, as a ${role}, how would you architect a high-throughput, sub-100ms API for streaming workflows while handling transient rate-limits and network failures?`,
+        focusArea: `System Scalability, Resilience & ${role} Execution`,
         rubric: {
-          situationTaskGoal: "Set up clear traffic volume expectations, connection pooling needs, and failure scenarios.",
+          situationTaskGoal: `Set up clear traffic volume expectations, connection pooling needs, and failure scenarios for ${role} at ${company}.`,
           actionRequirement: "Propose concrete caching (Redis), backoff retries, async queues, and clean API gateway patterns.",
           resultMetricRequirement: "Quantify expected p99 latency target and system uptime percentage under load."
         }
       },
       {
         category: "Behavioral & Leadership",
-        questionText: `Tell me about a time when you led a major architectural refactor under tight delivery deadlines. How did you balance speed, technical debt, and team alignment?`,
-        focusArea: "Engineering Leadership & Pragmatic Refactoring",
+        questionText: `Tell me about a time when you stepped into a ${role} position at a company like ${company} and led a major architectural or strategy initiative under tight delivery deadlines. How did you balance speed, technical debt, and team alignment?`,
+        focusArea: "Leadership, Strategic Execution & Stakeholder Alignment",
         rubric: {
           situationTaskGoal: "Describe the legacy bottleneck or tech debt urgency and deadline constraints.",
           actionRequirement: "Detail your prioritization matrix, RFC document process, and automated test safety nets.",
-          resultMetricRequirement: "Highlight quantifiable reduction in crash rates or deployment speed improvements."
+          resultMetricRequirement: "Highlight quantifiable reduction in incident rate or deployment speed improvements."
         }
       },
       {
-        category: "Problem Solving & AI Integration",
-        questionText: `How do you approach enforcing strict guardrails and preventing hallucinations when integrating LLMs into mission-critical user workflows?`,
-        focusArea: "AI Safety, Evaluation & Guardrail Architecture",
+        category: "Problem Solving & Quality Guardrails",
+        questionText: `In a ${role} capacity at ${company}, how do you approach enforcing strict quality guardrails, automated test coverage, and preventing regressions in mission-critical user workflows?`,
+        focusArea: "Quality Architecture, Verification & Operational Safety",
         rubric: {
-          situationTaskGoal: "Explain the risk of bad model outputs in production application context.",
-          actionRequirement: "Detail schema validation, secondary verifier passes, grounded search tools, and fallback mechanisms.",
-          resultMetricRequirement: "Mention zero-hallucination compliance rate or automated test coverage metric."
+          situationTaskGoal: "Explain the risk of unexpected edge cases or system failures in production.",
+          actionRequirement: "Detail schema validation, automated integration test suites, monitoring alerts, and fallback mechanisms.",
+          resultMetricRequirement: "Mention zero-regression compliance rate or automated test coverage metric."
         }
       }
     ];
@@ -872,6 +922,7 @@ ${rawText}`;
   function generateFallbackSTAREvaluation(questionText?: string, userAnswer?: string, jobTitle?: string) {
     const wordCount = (userAnswer || '').split(/\s+/).filter(Boolean).length;
     const isDetailed = wordCount > 25;
+    const role = jobTitle || 'Senior Candidate';
 
     return {
       overallScore: isDetailed ? 88 : 72,
@@ -882,15 +933,15 @@ ${rawText}`;
         relevanceToRole: isDetailed ? 23 : 20
       },
       keyStrengths: [
-        "Clear articulation of the problem context and technical ownership.",
-        "Demonstrated understanding of modern full-stack development principles."
+        `Clear articulation of the problem context and technical ownership relevant to a ${role}.`,
+        "Demonstrated understanding of structured execution and team communication."
       ],
       areasForImprovement: [
-        "Include more explicit quantifiable metrics in the 'Result' section (e.g. % performance increase, exact latency drop).",
-        "Elaborate on specific architectural tradeoffs considered during the 'Action' phase."
+        "Include more explicit quantifiable metrics in the 'Result' section (e.g. % performance increase, exact latency or cost savings drop).",
+        "Elaborate on specific architectural or operational tradeoffs considered during the 'Action' phase."
       ],
-      revisedSTARSample: `Here is how a 100-point STAR answer sounds for this question:\n\n**Situation:** Our primary API endpoint experienced latency spikes up to 800ms during peak user activity.\n**Task:** As Senior Engineer, I was tasked with reducing p99 response time below 150ms without increasing infrastructure cost by more than 10%.\n**Action:** I implemented Redis multi-level caching, optimized SQL query indexing, and refactored synchronous calls into asynchronous worker queues in Node.js.\n**Result:** Reduced p99 latency by 72% to 110ms and improved peak request throughput by 3.5x while keeping costs flat.`,
-      followUpQuestion: `That's a solid breakdown! If user traffic doubled overnight, what would be the very first bottleneck in that architecture and how would you auto-scale it?`
+      revisedSTARSample: `Here is how a 100-point STAR answer sounds for a ${role} position:\n\n**Situation:** Our primary API endpoint experienced latency spikes up to 800ms during peak user activity.\n**Task:** As ${role}, I was tasked with reducing p99 response time below 150ms without increasing infrastructure cost by more than 10%.\n**Action:** I implemented Redis multi-level caching, optimized database query indexing, and refactored synchronous calls into asynchronous worker queues.\n**Result:** Reduced p99 latency by 72% to 110ms and improved peak request throughput by 3.5x while keeping costs flat.`,
+      followUpQuestion: `That's a solid breakdown! If user volume or operational complexity doubled overnight, what would be the very first bottleneck in that architecture and how would you address it?`
     };
   }
 
@@ -968,10 +1019,16 @@ Output JSON matching this schema:
         },
       });
 
-      const result = parseJsonSafely(response.text, {});
-      res.json({ success: true, result });
+      const result = response?.text ? parseJsonSafely(response.text, null) : null;
+      if (result && result.jobTitle) {
+        res.json({ success: true, result });
+      } else {
+        const { profile, jobLead, companyIntel } = req.body;
+        const fallbackResult = generateFallbackTailorResult(profile, jobLead, companyIntel);
+        res.json({ success: true, result: fallbackResult, fallback: true });
+      }
     } catch (err: any) {
-      console.warn('[Resume Tailor Agent] API error/key missing, serving fallback result:', err.message || err);
+      console.log('[Resume Tailor Agent] Serving tailored resume fallback');
       const { profile, jobLead, companyIntel } = req.body;
       const result = generateFallbackTailorResult(profile, jobLead, companyIntel);
       res.json({ success: true, result, fallback: true });
@@ -1016,10 +1073,15 @@ Return JSON object:
         },
       });
 
-      const questionTurn = parseJsonSafely(response.text, {});
-      res.json({ success: true, questionTurn });
+      const questionTurn = response?.text ? parseJsonSafely(response.text, null) : null;
+      if (questionTurn && questionTurn.questionText) {
+        res.json({ success: true, questionTurn });
+      } else {
+        const fallbackQuestion = generateFallbackInterviewQuestion(jobTitle, companyName, questionIndex);
+        res.json({ success: true, questionTurn: fallbackQuestion, fallback: true });
+      }
     } catch (err: any) {
-      console.warn('[Interview Question Agent] API error/key missing, serving fallback question:', err.message || err);
+      console.log('[Interview Question Agent] Serving fallback question');
       const { jobTitle, companyName, questionIndex } = req.body;
       const questionTurn = generateFallbackInterviewQuestion(jobTitle, companyName, questionIndex);
       res.json({ success: true, questionTurn, fallback: true });
@@ -1071,10 +1133,15 @@ Output JSON:
         },
       });
 
-      const evaluation = parseJsonSafely(response.text, {});
-      res.json({ success: true, evaluation });
+      const evaluation = response?.text ? parseJsonSafely(response.text, null) : null;
+      if (evaluation && evaluation.overallScore) {
+        res.json({ success: true, evaluation });
+      } else {
+        const fallbackEval = generateFallbackSTAREvaluation(questionText, userAnswer, jobTitle);
+        res.json({ success: true, evaluation: fallbackEval, fallback: true });
+      }
     } catch (err: any) {
-      console.warn('[STAR Evaluator Agent] API error/key missing, serving fallback evaluation:', err.message || err);
+      console.log('[STAR Evaluator Agent] Serving fallback evaluation');
       const { questionText, userAnswer, jobTitle } = req.body;
       const evaluation = generateFallbackSTAREvaluation(questionText, userAnswer, jobTitle);
       res.json({ success: true, evaluation, fallback: true });

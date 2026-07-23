@@ -2,40 +2,65 @@ import { CandidateProfile, JobLead, CompanyIntel, TailoredAssetResult, Interview
 import { SAMPLE_JOB_LEADS, SAMPLE_COMPANY_INTEL } from '../data/mockData';
 
 function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: string): JobLead[] {
-  const q = (searchQuery || '').toLowerCase();
-  const isSingapore = q.includes('singapore') || q.includes('sg') || profile.locations.some(l => l.toLowerCase().includes('singapore'));
-  const isLondon = q.includes('london') || q.includes('uk');
+  const rawQ = (searchQuery || '').trim();
+  const qLower = rawQ.toLowerCase();
+
+  const cleanedRoleQuery = rawQ
+    .replace(/\s*(in|at|for|near)\s+(singapore|sg|london|tokyo|japan|san francisco|sf|usa|remote|hybrid)\b/gi, '')
+    .replace(/\b(singapore|sg|london|tokyo|japan|san francisco|sf|usa|remote|hybrid)\b/gi, '')
+    .trim();
+
+  const isSingapore = qLower.includes('singapore') || qLower.includes('sg') || profile.locations.some(l => l.toLowerCase().includes('singapore'));
+  const isLondon = qLower.includes('london') || qLower.includes('uk');
 
   const currency = isSingapore ? 'SGD' : isLondon ? 'GBP' : profile.currency || 'USD';
   const locationLabel = isSingapore ? 'Singapore (Hybrid)' : isLondon ? 'London, UK (Hybrid)' : 'San Francisco, CA (Hybrid)';
 
-  // Dynamically derive job titles from candidate targetTitles if provided
   const targetTitles = profile.targetTitles && profile.targetTitles.length > 0 ? profile.targetTitles : [];
   
-  let title1 = targetTitles[0] || "Senior Platform & Systems Engineer";
-  let title2 = targetTitles[1] || targetTitles[0] || "Principal Consultant / Lead Engineer";
+  let title1 = "";
+  let title2 = "";
+  let title3 = "";
 
-  if (q.includes('data') || q.includes('machine learning') || q.includes('ml')) {
-    title1 = "Senior AI Platform & Machine Learning Lead";
-    title2 = "Staff Data Architect";
-  } else if (q.includes('energy') || q.includes('sustainability') || q.includes('consultant')) {
-    title1 = targetTitles.find(t => t.toLowerCase().includes('sustainability') || t.toLowerCase().includes('consultant') || t.toLowerCase().includes('energy')) || "Senior Sustainability & Energy Consultant";
-    title2 = targetTitles.find(t => t.toLowerCase().includes('manager') || t.toLowerCase().includes('director')) || "Senior Energy Systems Project Manager";
+  if (cleanedRoleQuery.length >= 3) {
+    title1 = cleanedRoleQuery.replace(/\b\w/g, l => l.toUpperCase());
+    title2 = (targetTitles.find(t => t.toLowerCase() !== cleanedRoleQuery.toLowerCase()) || targetTitles[0] || `Principal ${title1}`)
+      .replace(/\b\w/g, l => l.toUpperCase());
+    title3 = `Junior ${title1.replace(/^Senior\s+|^Staff\s+|^Principal\s+|^Lead\s+/i, '')}`;
+  } else {
+    title1 = (targetTitles[0] || "Senior Consultant & Systems Manager").replace(/\b\w/g, l => l.toUpperCase());
+    title2 = (targetTitles[1] || targetTitles[0] || "Principal Energy & Technology Lead").replace(/\b\w/g, l => l.toUpperCase());
+    title3 = `Junior ${title1.replace(/^Senior\s+|^Staff\s+|^Principal\s+|^Lead\s+/i, '')}`;
   }
-
-  // Capitalize properly
-  title1 = title1.replace(/\b\w/g, l => l.toUpperCase());
-  title2 = title2.replace(/\b\w/g, l => l.toUpperCase());
 
   const keySkillsText = profile.skills && profile.skills.length > 0
     ? profile.skills.slice(0, 4).join(', ')
-    : 'System Architecture, Leadership, Technical Delivery';
+    : 'Project Execution, Stakeholder Management, Strategic Delivery';
 
-  const isEnergyOrSustainability = (title1 + title2 + keySkillsText).toLowerCase().match(/energy|sustainab|consult|environmental|decarbon/);
+  const fullDomainContext = (title1 + ' ' + title2 + ' ' + keySkillsText + ' ' + (profile.experienceSummary || '') + ' ' + qLower).toLowerCase();
 
-  const company1 = isSingapore ? (isEnergyOrSustainability ? "Sembcorp Industries SG" : "Grab") : "Stripe";
-  const company2 = isSingapore ? (isEnergyOrSustainability ? "Keppel Corporation / Infrastructure" : "Shopee / Sea Group") : "Datadog";
-  const company3 = isSingapore ? "Local Small Business SG" : "Startup Co";
+  const isEnergyOrSustainability = fullDomainContext.match(/energy|sustainab|consult|environ|decarbon|climate|solar|grid/);
+  const isPublicGovOrDirector = fullDomainContext.match(/director|assistant director|gov|ministry|public|policy|agency/);
+
+  let company1 = "Grab";
+  let company2 = "Shopee / Sea Group";
+  let company3 = "Local Enterprise SG";
+
+  if (isSingapore) {
+    if (isEnergyOrSustainability) {
+      company1 = "Sembcorp Industries SG";
+      company2 = "Keppel Corporation / Keppel Infrastructure";
+      company3 = "EcoVadis SG";
+    } else if (isPublicGovOrDirector) {
+      company1 = "GovTech Singapore / Ministry of Sustainability";
+      company2 = "DBS Bank - Enterprise Strategy & Transformation";
+      company3 = "SG Regional Advisory Services";
+    }
+  } else if (isLondon) {
+    company1 = "Revolut";
+    company2 = "Monzo Bank";
+    company3 = "London Tech Studio";
+  }
 
   const minThreshold = profile.minSalary || (isSingapore ? 80000 : 120000);
   const salMin1 = Math.max(isSingapore ? 110000 : 150000, Math.round(minThreshold * 1.2));
@@ -43,7 +68,6 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
   const salMin2 = Math.max(isSingapore ? 130000 : 170000, Math.round(minThreshold * 1.35));
   const salMax2 = Math.round(salMin2 * 1.35);
   
-  // Lead 3 specifically triggers guardrail failure for transparency
   const salMin3 = Math.max(25000, Math.round(minThreshold * 0.6));
   const salMax3 = Math.round(salMin3 * 1.25);
 
@@ -65,7 +89,7 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
       visaSupported: true,
       source: isSingapore ? "MyCareersFuture SG" : "LinkedIn Jobs",
       url: isSingapore ? "https://mycareersfuture.gov.sg" : "https://linkedin.com/jobs",
-      description: `${company1} is seeking a ${title1} in ${locationLabel}. Role focuses on project execution, stakeholder engagement, and expertise in ${keySkillsText}.`,
+      description: `${company1} is seeking a ${title1} in ${locationLabel}. Role focuses on strategic delivery, stakeholder management, and expertise in ${keySkillsText}.`,
       matchScore: 96,
       matchReasoning: `Strong alignment with candidate target titles (${title1}), core skills (${keySkillsText}), and minimum salary threshold.`,
       status: "routed_to_intel",
@@ -84,7 +108,7 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
       visaSupported: true,
       source: isSingapore ? "LinkedIn Singapore" : "Glassdoor",
       url: isSingapore ? "https://linkedin.com/jobs" : "https://glassdoor.com",
-      description: `${company2} is expanding its strategic team in ${locationLabel}. Looking for a ${title2} experienced in cross-functional strategy, data analysis, and ${keySkillsText}.`,
+      description: `${company2} is expanding its core strategic team in ${locationLabel}. Looking for a ${title2} experienced in cross-functional strategy, client advisory, and ${keySkillsText}.`,
       matchScore: 92,
       matchReasoning: `High compatibility with candidate target titles and domain background in ${keySkillsText}.`,
       status: "passed_guardrails",
@@ -93,7 +117,7 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
     },
     {
       id: `lead-client-${Date.now()}-3`,
-      title: "Junior Entry Assistant",
+      title: title3,
       company: company3,
       location: isSingapore ? "Singapore (On-site)" : locationLabel,
       salaryRange: `$${salMin3.toLocaleString()} - $${salMax3.toLocaleString()} ${currency}`,
