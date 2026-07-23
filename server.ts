@@ -244,7 +244,7 @@ async function startServer() {
   async function tryOllamaGenerate(prompt: string, isJson: boolean = false): Promise<{ text: string } | null> {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
     try {
-      const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(2000) });
+      const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(2500) });
       if (!tagsRes.ok) {
         return null;
       }
@@ -273,10 +273,11 @@ async function startServer() {
           format: isJson ? 'json' : undefined,
           options: {
             temperature: 0.2,
-            num_predict: 1536,
+            num_ctx: 2048,
+            num_predict: 1024,
           },
         }),
-        signal: AbortSignal.timeout(120000), // 2 minutes for local inference
+        signal: AbortSignal.timeout(180000), // 3 minutes allowance for local inference on CPU/GPU
       });
 
       if (!genRes.ok) {
@@ -362,8 +363,8 @@ async function startServer() {
               msg.includes('RESOURCE_EXHAUSTED');
 
             if (isQuotaExceeded) {
-              console.warn(`[Gemini API] Model ${modelName} quota limit reached (429). Enabling 5-min Gemini cool-off and switching to Ollama...`);
-              geminiQuotaExceededUntil = Date.now() + 5 * 60 * 1000; // 5 minute cool-off
+              console.warn(`[Gemini API] Model ${modelName} quota limit reached (429). Enabling 45s Gemini cool-off and switching to local Ollama...`);
+              geminiQuotaExceededUntil = Date.now() + 45 * 1000; // 45 second cool-off for rate limit window
               break;
             }
 
