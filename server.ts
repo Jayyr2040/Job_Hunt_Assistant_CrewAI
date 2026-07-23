@@ -238,6 +238,8 @@ async function startServer() {
     }
   }
 
+  let geminiQuotaExceededUntil = 0;
+
   // Helper to query local Ollama server if available as a fallback or primary LLM
   async function tryOllamaGenerate(prompt: string, isJson: boolean = false): Promise<{ text: string } | null> {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
@@ -249,16 +251,16 @@ async function startServer() {
       const tagsData = (await tagsRes.json()) as any;
       const models: any[] = tagsData.models || [];
       if (!models || models.length === 0) {
-        console.warn(`[Ollama Engine] Reachable at ${ollamaHost}, but no models found. Run "ollama pull llama3.2" to download a model.`);
+        console.warn(`[Ollama Engine] Reachable at ${ollamaHost}, but no models found. Run "ollama pull llama3.2" in your terminal to load a model.`);
         return null;
       }
 
       const preferredModel = process.env.OLLAMA_MODEL;
       const modelName = preferredModel || models[0].name || models[0].model || 'llama3.2';
-      console.log(`[Ollama Engine] Processing agent request via local Ollama model "${modelName}" at ${ollamaHost}...`);
+      console.log(`[Ollama Engine] Processing request via local model "${modelName}" at ${ollamaHost}...`);
 
       const formattedPrompt = isJson
-        ? `${prompt}\n\nCRITICAL DIRECTIVE: Output ONLY valid raw JSON syntax. Do NOT wrap in markdown backticks (\`\`\`json). Do NOT add conversational text.`
+        ? `${prompt}\n\nCRITICAL INSTRUCTION: Output ONLY valid raw JSON syntax matching the schema requested. No markdown formatting, no conversation.`
         : prompt;
 
       const genRes = await fetch(`${ollamaHost}/api/generate`, {
@@ -269,12 +271,16 @@ async function startServer() {
           prompt: formattedPrompt,
           stream: false,
           format: isJson ? 'json' : undefined,
+          options: {
+            temperature: 0.2,
+            num_predict: 1536,
+          },
         }),
-        signal: AbortSignal.timeout(90000),
+        signal: AbortSignal.timeout(120000), // 2 minutes for local inference
       });
 
       if (!genRes.ok) {
-        console.warn(`[Ollama Engine] Ollama generate failed with status ${genRes.status}`);
+        console.warn(`[Ollama Engine] Generate request failed with HTTP ${genRes.status}`);
         return null;
       }
       const genData = (await genRes.json()) as any;
@@ -283,7 +289,7 @@ async function startServer() {
       }
       return null;
     } catch (e: any) {
-      console.warn(`[Ollama Engine] Ollama connection/generation attempt: ${e?.message || e}`);
+      console.warn(`[Ollama Engine] Local inference attempt notice: ${e?.message || e}`);
       return null;
     }
   }
@@ -307,7 +313,7 @@ async function startServer() {
     return '';
   }
 
-  // Unified AI Agent execution runner (Gemini API with auto Ollama fallback)
+  // Unified AI Agent execution runner (Gemini API with auto Ollama fallback & quota bypass)
   async function generateContentWithRetry(ai: GoogleGenAI | null, params: any) {
     const primaryModel = params.model || 'gemini-3.6-flash';
     const modelsToTry = [primaryModel];
@@ -317,19 +323,23 @@ async function startServer() {
 
     let lastError: any = null;
     const forceOllama = process.env.FORCE_OLLAMA === 'true' || process.env.USE_OLLAMA_FIRST === 'true';
+    const isGeminiCoolingOff = Date.now() < geminiQuotaExceededUntil;
 
-    // 1. If FORCE_OLLAMA is active or no Gemini AI client is configured, run Ollama directly
-    if (forceOllama || !ai) {
+    // 1. Run Ollama directly if forced, or if no Gemini key, or if Gemini is cooling off after quota limit (429)
+    if (forceOllama || !ai || isGeminiCoolingOff) {
       const promptStr = extractPromptString(params);
       const isJsonRequested = params?.config?.responseMimeType === 'application/json';
       if (promptStr) {
+        if (isGeminiCoolingOff) {
+          console.log('[AI Router] Gemini API recently hit quota limit (429). Routing directly to local Ollama...');
+        }
         const ollamaRes = await tryOllamaGenerate(promptStr, isJsonRequested);
         if (ollamaRes) return ollamaRes;
       }
     }
 
-    // 2. Try Gemini API models if client exists
-    if (ai) {
+    // 2. Try Gemini API models if client exists and not cooling off
+    if (ai && !isGeminiCoolingOff) {
       for (const modelName of modelsToTry) {
         const attemptParams = { ...params, model: modelName };
         for (let attempt = 1; attempt <= 2; attempt++) {
@@ -343,7 +353,7 @@ async function startServer() {
             const status = err?.status || err?.code || err?.error?.code;
             const msg = String(err?.message || err || '');
 
-            console.warn(`[Gemini API] Model ${modelName} attempt ${attempt} issue (${status || 'error'}): ${msg}`);
+            console.warn(`[Gemini API] Model ${modelName} issue (${status || 'error'}): ${msg}`);
 
             const isQuotaExceeded =
               status === 429 ||
@@ -352,7 +362,8 @@ async function startServer() {
               msg.includes('RESOURCE_EXHAUSTED');
 
             if (isQuotaExceeded) {
-              console.warn(`[Gemini API] Model ${modelName} quota limit reached (429). Trying fallback...`);
+              console.warn(`[Gemini API] Model ${modelName} quota limit reached (429). Enabling 5-min Gemini cool-off and switching to Ollama...`);
+              geminiQuotaExceededUntil = Date.now() + 5 * 60 * 1000; // 5 minute cool-off
               break;
             }
 
