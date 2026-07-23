@@ -109,13 +109,41 @@ export const CompanyIntelView: React.FC<CompanyIntelViewProps> = ({
               {/* Tech Stack / Operational Capabilities Breakdown */}
               {(() => {
                 const domainContext = ((activeLead?.title || '') + ' ' + (intel.companyName || '') + ' ' + (intel.overview || '') + ' ' + (activeLead?.description || '')).toLowerCase();
-                const isNonTechDomain = domainContext.match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
+                const isNonTechDomain = domainContext.match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel|dbs/);
 
                 const cardTitle = isNonTechDomain ? 'Operational & Domain Competencies' : 'Tech Stack Analysis';
                 const label1 = isNonTechDomain ? 'Core Domains & Policy:' : 'Languages:';
                 const label2 = isNonTechDomain ? 'Methodologies & Frameworks:' : 'Frameworks:';
                 const label3 = isNonTechDomain ? 'Infrastructure & Platforms:' : 'Cloud & Infrastructure:';
                 const label4 = isNonTechDomain ? 'Reporting & Analytics:' : 'Databases & Caching:';
+
+                let languages = intel.techStack?.languages || [];
+                let frameworks = intel.techStack?.frameworks || [];
+                let cloudAndDevOps = intel.techStack?.cloudAndDevOps || [];
+                let dataAndDatabase = intel.techStack?.dataAndDatabase || [];
+
+                if (isNonTechDomain) {
+                  // Filter out generic software code tags if mistakenly returned
+                  languages = languages.filter(l => !l.match(/^python$|^java$|^c\+\+$|^ruby$|^go$|^typescript$|^javascript$/i));
+                  if (languages.length === 0) {
+                    languages = ["Carbon Accounting", "ESG Standards (GRI/TCFD)", "Environmental Policy", "Energy Auditing"];
+                  }
+
+                  frameworks = frameworks.filter(f => !f.match(/aws cloud|spark|react|express|node|graphql|vue|angular/i));
+                  if (frameworks.length === 0) {
+                    frameworks = ["Life Cycle Assessment (LCA)", "Decarbonization Roadmap", "ISO 50001", "Project Governance"];
+                  }
+
+                  cloudAndDevOps = cloudAndDevOps.filter(c => !c.match(/^aws$|^azure$|^kubernetes$|^docker$|^terraform$/i));
+                  if (cloudAndDevOps.length === 0) {
+                    cloudAndDevOps = ["Smart Grid IoT Systems", "Clean Energy Platform", "GIS Mapping Tools", "ERP Integration"];
+                  }
+
+                  dataAndDatabase = dataAndDatabase.filter(d => !d.match(/^mysql$|^postgresql$|^mongodb$|^redis$/i));
+                  if (dataAndDatabase.length === 0) {
+                    dataAndDatabase = ["Energy Analytics Dashboards", "PowerBI & Tableau", "SQL Data Pipelines", "Excel Modeling"];
+                  }
+                }
 
                 return (
                   <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-4">
@@ -128,7 +156,7 @@ export const CompanyIntelView: React.FC<CompanyIntelViewProps> = ({
                       <div>
                         <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{label1}</span>
                         <div className="flex flex-wrap gap-1">
-                          {intel.techStack.languages.map((item) => (
+                          {languages.map((item) => (
                             <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
                               {item}
                             </span>
@@ -139,7 +167,7 @@ export const CompanyIntelView: React.FC<CompanyIntelViewProps> = ({
                       <div>
                         <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{label2}</span>
                         <div className="flex flex-wrap gap-1">
-                          {intel.techStack.frameworks.map((item) => (
+                          {frameworks.map((item) => (
                             <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
                               {item}
                             </span>
@@ -150,7 +178,7 @@ export const CompanyIntelView: React.FC<CompanyIntelViewProps> = ({
                       <div>
                         <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{label3}</span>
                         <div className="flex flex-wrap gap-1">
-                          {intel.techStack.cloudAndDevOps.map((item) => (
+                          {cloudAndDevOps.map((item) => (
                             <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
                               {item}
                             </span>
@@ -161,7 +189,7 @@ export const CompanyIntelView: React.FC<CompanyIntelViewProps> = ({
                       <div>
                         <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{label4}</span>
                         <div className="flex flex-wrap gap-1">
-                          {intel.techStack.dataAndDatabase.map((item) => (
+                          {dataAndDatabase.map((item) => (
                             <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
                               {item}
                             </span>

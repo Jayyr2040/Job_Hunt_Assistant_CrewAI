@@ -114,6 +114,45 @@ export const SAMPLE_JOB_LEADS: JobLead[] = [
 ];
 
 export const SAMPLE_COMPANY_INTEL: Record<string, CompanyIntel> = {
+  "Sembcorp Industries SG": {
+    companyName: "Sembcorp Industries SG",
+    overview: "Sembcorp Industries is a leading energy and urban solutions provider, driving APAC clean energy transition, water treatment infrastructure, decarbonization frameworks, and sustainable urbanization.",
+    recentNews: [
+      "Sembcorp announced SGD 250M clean energy expansion and 200MW solar power project in Singapore.",
+      "Leadership published 2026 Sustainability Roadmap detailing carbon neutrality targets and ESG governance.",
+      "Formed strategic partnership with EMA for smart grid reliability and battery energy storage systems."
+    ],
+    cultureAndValues: [
+      "Purpose-driven sustainability & environmental stewardship",
+      "Rigorous project governance, safety & regulatory compliance",
+      "Data-informed operational execution across regional assets",
+      "Collaborative leadership and cross-functional team alignment"
+    ],
+    techStack: {
+      languages: ["Carbon Accounting", "ESG Standards (GRI/TCFD)", "Environmental Policy", "Energy Auditing"],
+      frameworks: ["Life Cycle Assessment (LCA)", "Decarbonization Roadmap", "ISO 50001", "Project Governance"],
+      cloudAndDevOps: ["Smart Grid IoT Systems", "Clean Energy Platform", "GIS Mapping Tools", "ERP Integration"],
+      dataAndDatabase: ["Energy Analytics Dashboards", "PowerBI & Tableau", "SQL Data Pipelines", "Excel Modeling"],
+      tooling: ["SAP Energy Suite", "EcoVadis Reporting", "Jira Project Management"]
+    },
+    leadershipStyle: "Strategic, safety-first leadership emphasizing regulatory rigor, stakeholder alignment, and measurable decarbonization impact.",
+    potentialRedFlags: [
+      "Navigating multi-agency regulatory approvals requires stakeholder patience.",
+      "Balancing aggressive net-zero timelines with capital expenditure allocation constraints."
+    ],
+    commonInterviewQuestions: [
+      "How do you align multi-department stakeholders when executing strategic sustainability or infrastructure initiatives at Sembcorp Industries SG?",
+      "Can you describe your methodology for monitoring operational performance, risk controls, and project milestones?",
+      "How do you prioritize deliverables when facing unexpected regulatory policy updates or project timeline shifts?"
+    ],
+    candidateQuestionsToAsk: [
+      "What are Sembcorp's top strategic decarbonization and operational priorities over the next 12-18 months?",
+      "How does executive leadership measure and reward success for senior leaders driving these initiatives?",
+      "What cross-functional teams will this role collaborate with most closely on a day-to-day basis?"
+    ],
+    sourcesCount: 15,
+    researchedAt: "Live Grounded Research Brief"
+  },
   "Stripe": {
     companyName: "Stripe",
     overview: "Stripe is a financial infrastructure platform for businesses. Millions of companies use Stripe's software to accept payments, grow their revenue, and accelerate new business opportunities.",

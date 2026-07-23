@@ -341,7 +341,7 @@ export async function runTailorLoop(
   const company = jobLead.company;
   const skillsList = profile.skills.length > 0 ? profile.skills.join(', ') : 'Strategic Planning, Execution, Leadership';
 
-  const isNonTech = (title + ' ' + company + ' ' + skillsList).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
+  const isNonTech = (title + ' ' + company + ' ' + skillsList).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel/);
 
   const resumeMarkdown = isNonTech
     ? `# ${profile.name}
@@ -358,7 +358,7 @@ Accomplished ${title} with extensive experience leading strategic initiatives, s
 ## Professional Experience
 
 ### ${company} (Tailored Alignment: ${title})
-**Senior Strategic Lead / Executive Director** | 2022 - Present
+**Senior Strategic Lead / Engineering Manager** | 2022 - Present
 - Spearheaded end-to-end strategic program delivery for key regional initiatives, unifying 5+ cross-functional teams and accelerating project delivery timelines by 32%.
 - Established robust risk mitigation protocols and compliance controls, achieving 100% regulatory audit compliance.
 - Managed multi-million dollar operational budgets, optimizing resource allocation and driving an 18% cost efficiency improvement.
@@ -382,12 +382,12 @@ Senior Full Stack & AI Platform Engineer with 8+ years experience architecting m
 
 ## Professional Experience
 
-### Apex Tech Labs | Lead Full Stack & AI Solutions Engineer (2023 - Present)
+### ${company} | Lead Full Stack & AI Solutions Engineer (2023 - Present)
 - Architected multi-agent orchestration engine handling 1.2M daily workflow requests with Gemini API, reducing operational latency by 38%.
 - Led 6 engineers in developing a React 19 micro-frontend dashboard with TypeScript and Tailwind CSS aligned with ${company}'s engineering values.
 - Optimized PostgreSQL query performance and Redis caching layers, scaling throughput from 5,000 to 45,000 requests/sec.
 
-### Nexus Cloud Systems | Senior Software Engineer (2020 - 2023)
+### Prior Senior Software Engineering Roles
 - Designed containerized CI/CD deployment pipeline with Docker & Kubernetes, cutting rollback times from 25 minutes to under 2 minutes.
 - Mentored 8 engineers, establishing code review guidelines and static analysis standards.
 
@@ -405,6 +405,10 @@ I look forward to discussing how my experience can deliver immediate impact for 
 Sincerely,
 ${profile.name}`;
 
+  const suggestions = isNonTech
+    ? ["Incorporate explicit stakeholder alignment and budget oversight metrics into primary experience bullets."]
+    : ["Incorporate target architecture and system throughput metrics into primary experience bullets."];
+
   return {
     jobId: jobLead.id,
     jobTitle: title,
@@ -421,9 +425,9 @@ ${profile.name}`;
         keywordMatchPercentage: 78,
         feedback: {
           strengths: ["Strong action verbs", "Clear metric structure"],
-          missingKeywords: ["Stakeholder Alignment", "Program Execution", "Risk Mitigation"],
+          missingKeywords: isNonTech ? ["Stakeholder Alignment", "Program Execution", "Risk Mitigation"] : ["Distributed Architecture", "System Scalability"],
           guardrailViolations: [],
-          improvementSuggestions: ["Incorporate explicit core domain keywords from candidate experience."]
+          improvementSuggestions: suggestions
         },
         tailoredResume: resumeMarkdown,
         coverLetter: coverLetterMarkdown
@@ -466,7 +470,7 @@ export async function generateInterviewQuestion(
     console.warn('Interview question API failed, using fallback:', err);
   }
 
-  const isNonTech = (jobTitle + ' ' + companyName).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
+  const isNonTech = (jobTitle + ' ' + companyName).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel/);
 
   const fallbackQuestions = isNonTech
     ? [
@@ -526,6 +530,41 @@ export async function evaluateInterviewAnswer(
   rubric: any,
   jobTitle: string
 ): Promise<STARAnswerEvaluation> {
+  const cleanAnswer = (userAnswer || '').trim();
+  const wordCount = cleanAnswer.split(/\s+/).filter(Boolean).length;
+
+  const isNonTech = (jobTitle + ' ' + questionText).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel/);
+
+  const sampleText = isNonTech
+    ? `**Situation:** At my previous enterprise division, a key sustainability and operational initiative faced a 20% timeline delay across regional sites.\n\n**Task:** As ${jobTitle}, I took over project governance to align 4 cross-functional departments and restore schedule momentum.\n\n**Action:** I implemented bi-weekly progress dashboards, facilitated stakeholder consensus workshops, and streamlined vendor review protocols.\n\n**Result:** Delivered the initiative 3 weeks ahead of schedule, achieved 100% compliance audit marks, and reduced operational overhead by 18%.`
+    : `**Situation:** At my previous company, our primary API faced a 4x spike in traffic causing 500ms latency spikes.\n\n**Task:** I was tasked with leading the architecture revamp to restore response times under 100ms.\n\n**Action:** I implemented a Redis caching layer for frequent queries and optimized database connection pooling.\n\n**Result:** Operational latency dropped by 38% to 65ms, and throughput scaled to 45,000 req/sec with zero downtime.`;
+
+  const followUp = isNonTech
+    ? "If project scope or regulatory requirements expanded mid-way, how would you re-prioritize deliverables without compromising quality?"
+    : "How would your architecture handle a total failure of the primary Redis node during peak traffic?";
+
+  // STRICT GUARDRAIL: Short or incomplete responses (< 15 words) MUST receive strict low score
+  if (wordCount < 15 || cleanAnswer.length < 50) {
+    return {
+      overallScore: Math.min(28, Math.max(12, wordCount * 5)),
+      starScorecard: {
+        situationTask: 7,
+        actionClarity: 6,
+        resultMetrics: 4,
+        relevanceToRole: 8
+      },
+      keyStrengths: [
+        "Initial response submitted to the mock interview simulator."
+      ],
+      areasForImprovement: [
+        `Your response ("${cleanAnswer || 'No response'}") is far too brief (${wordCount} word${wordCount === 1 ? '' : 's'}). A complete STAR response requires detailed narrative sentences.`,
+        "A high-scoring answer requires a full Situation & Task setup, explicit Action steps, and quantifiable Result metrics."
+      ],
+      revisedSTARSample: sampleText,
+      followUpQuestion: followUp
+    };
+  }
+
   try {
     const res = await fetch('/api/crew/interview/evaluate', {
       method: 'POST',
@@ -541,23 +580,15 @@ export async function evaluateInterviewAnswer(
     console.warn('Evaluate answer API failed, using fallback:', err);
   }
 
-  const isNonTech = (jobTitle + ' ' + questionText).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
-
-  const sampleText = isNonTech
-    ? `**Situation:** At my previous enterprise division, a key sustainability and operational initiative faced a 20% timeline delay across regional sites.\n\n**Task:** As ${jobTitle}, I took over project governance to align 4 cross-functional departments and restore schedule momentum.\n\n**Action:** I implemented bi-weekly progress dashboards, facilitated stakeholder consensus workshops, and streamlined vendor review protocols.\n\n**Result:** Delivered the initiative 3 weeks ahead of schedule, achieved 100% compliance audit marks, and reduced operational overhead by 18%.`
-    : `**Situation:** At my previous company, our primary API faced a 4x spike in traffic causing 500ms latency spikes.\n\n**Task:** I was tasked with leading the architecture revamp to restore response times under 100ms.\n\n**Action:** I implemented a Redis caching layer for frequent queries and optimized database connection pooling.\n\n**Result:** Operational latency dropped by 38% to 65ms, and throughput scaled to 45,000 req/sec with zero downtime.`;
-
-  const followUp = isNonTech
-    ? "If project scope or regulatory requirements expanded mid-way, how would you re-prioritize deliverables without compromising quality?"
-    : "How would your architecture handle a total failure of the primary Redis node during peak traffic?";
+  const isDetailed = wordCount > 40;
 
   return {
-    overallScore: 88,
+    overallScore: isDetailed ? 92 : 78,
     starScorecard: {
-      situationTask: 23,
-      actionClarity: 22,
-      resultMetrics: 20,
-      relevanceToRole: 23
+      situationTask: isDetailed ? 24 : 20,
+      actionClarity: isDetailed ? 23 : 20,
+      resultMetrics: isDetailed ? 22 : 18,
+      relevanceToRole: isDetailed ? 23 : 20
     },
     keyStrengths: [
       "Clear Situation setup outlining project scope and organizational stakes",

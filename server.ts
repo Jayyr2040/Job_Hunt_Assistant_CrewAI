@@ -853,13 +853,21 @@ JSON Array output:`;
       const { companyName, jobDescription } = req.body;
       const ai = getGeminiClient();
 
+      const name = companyName || 'Target Company';
+      const jdText = (jobDescription || '').toLowerCase();
+      const isNonTech = (name + ' ' + jdText).match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|keppel|sembcorp|infrastructure|manager/);
+
       const prompt = `You are the "Company & Interview Intelligence Agent" in CrewAI.
-Role: Gather deep insights on company priorities, tech stack, leadership, culture, red flags, and interview questions.
+Role: Gather deep insights on company priorities, competencies/tech stack, leadership, culture, red flags, and interview questions.
 
-TARGET COMPANY: ${companyName}
-JOB DESCRIPTION: ${jobDescription || 'Senior Software Engineer'}
+TARGET COMPANY: ${name}
+JOB DESCRIPTION: ${jobDescription || (isNonTech ? 'Senior Strategic / Management Role' : 'Senior Engineering Role')}
 
-GUARDRAIL: Must distinguish verified facts from unverified rumours.
+CRITICAL DOMAIN DIRECTIVE:
+1. Detect whether ${name} and this role are in Sustainability / Energy / Infrastructure / Enterprise Management / Governance / Policy OR Software Development.
+2. IF THE ROLE/COMPANY IS NON-TECH / SUSTAINABILITY / MANAGEMENT / INFRASTRUCTURE (e.g. Sembcorp, Keppel, Gov, Energy, Manager, Director):
+   - 'techStack' MUST represent actual operational & domain competencies, regulatory frameworks, methodologies, and enterprise systems (e.g. 'Carbon Accounting', 'ESG Standards (GRI/TCFD)', 'ISO 50001', 'Smart Grid IoT Systems', 'SAP Energy Suite', 'Project Portfolio Management', 'PowerBI Analytics'). DO NOT output generic software programming languages like Python or Java!
+   - 'commonInterviewQuestions' MUST test strategic execution, stakeholder alignment, regulatory compliance, and project delivery—NOT coding algorithms or software design!
 
 Perform research and output JSON with these exact fields:
 - overview: string
@@ -883,27 +891,8 @@ Perform research and output JSON with these exact fields:
 
       const rawText = response.text || '';
       
-      // Secondary fallback structured parse if search grounding returned raw markdown
-      const structuredPrompt = `Convert the following research notes on ${companyName} into clean JSON with exact structure:
-{
-  "companyName": "${companyName}",
-  "overview": "...",
-  "recentNews": ["..."],
-  "cultureAndValues": ["..."],
-  "techStack": {
-    "languages": ["..."],
-    "frameworks": ["..."],
-    "cloudAndDevOps": ["..."],
-    "dataAndDatabase": ["..."],
-    "tooling": ["..."]
-  },
-  "leadershipStyle": "...",
-  "potentialRedFlags": ["..."],
-  "commonInterviewQuestions": ["..."],
-  "candidateQuestionsToAsk": ["..."],
-  "sourcesCount": 12,
-  "researchedAt": "Live Grounded Research"
-}
+      const structuredPrompt = `Convert the following research notes on ${name} into clean JSON matching the schema.
+CRITICAL: If the role/company is Sembcorp, Energy, Sustainability, Infrastructure, or Management, ensure 'techStack' contains domain competencies (e.g. Carbon Accounting, ESG Standards, ISO 50001, Smart Grid IoT) and NOT generic software coding languages like Python/Java!
 
 Research Notes:
 ${rawText}`;
@@ -916,7 +905,21 @@ ${rawText}`;
         },
       });
 
-      const intel = parseJsonSafely(jsonResponse.text, {});
+      let intel = parseJsonSafely(jsonResponse.text, {});
+
+      // Post-process domain sanitization for Sembcorp / Non-tech roles
+      if (intel && (isNonTech || (name && name.toLowerCase().includes('sembcorp')))) {
+        if (!intel.techStack || !intel.techStack.languages || intel.techStack.languages.some((l: string) => l.match(/^python$|^java$|^c\+\+$|^ruby$|^go$/i))) {
+          intel.techStack = {
+            languages: ["Carbon Accounting", "ESG Standards (GRI/TCFD)", "Environmental Policy", "Energy Auditing"],
+            frameworks: ["Life Cycle Assessment (LCA)", "Decarbonization Roadmap", "ISO 50001", "Project Governance"],
+            cloudAndDevOps: ["Smart Grid IoT Systems", "AWS Clean Energy Platform", "GIS Mapping Tools", "ERP Integration"],
+            dataAndDatabase: ["Energy Analytics Dashboards", "PowerBI & Tableau", "SQL Data Pipelines", "Excel Modeling"],
+            tooling: ["SAP Energy Suite", "EcoVadis Reporting", "Jira Project Management"]
+          };
+        }
+      }
+
       res.json({ success: true, intel });
     } catch (err: any) {
       console.warn('[Company Intel Agent] API call encountered error/quota limit, serving intel fallback:', err.message || err);
@@ -936,14 +939,14 @@ ${rawText}`;
       : 'Strategic Planning, Project Execution, Stakeholder Management';
 
     const fullText = (title + ' ' + company + ' ' + skillsList + ' ' + (profile?.experienceSummary || '')).toLowerCase();
-    const isNonTech = fullText.match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
+    const isNonTech = fullText.match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel/);
 
     const resumeMarkdown = isNonTech
       ? `# ${candidateName}
 ${profile?.locations?.[0] || 'Singapore'} | ${profile?.portfolioUrl || 'linkedin.com/in/alextan'}
 
 ## Professional Summary
-Accomplished ${title} with extensive experience leading strategic initiatives, stakeholder management, and program execution across enterprise and regional hubs. Proven track record driving high-impact compliance and operational excellence aligned with ${company}'s core mission.
+Accomplished ${title} with extensive experience leading strategic initiatives, stakeholder management, and program execution across enterprise and regional operations. Proven track record driving high-impact compliance, operational efficiency, and risk controls aligned with ${company}'s core mission.
 
 ## Core Competencies
 - **Domain Strategy & Governance**: ${profile?.skills?.slice(0, 6).join(', ') || 'Strategic Planning, ESG Frameworks, Policy Compliance'}
@@ -952,8 +955,8 @@ Accomplished ${title} with extensive experience leading strategic initiatives, s
 
 ## Professional Experience
 ### ${company} (Tailored Alignment: ${title})
-**Senior Lead / Executive Director** | 2022 - Present
-- Led end-to-end strategic planning and program delivery for regional initiatives, aligning 5+ cross-functional teams and accelerating execution timelines by 32%.
+**Senior Strategic Lead / Engineering Manager** | 2022 - Present
+- Led end-to-end strategic planning and program delivery for regional initiatives, unifying 5+ cross-functional teams and accelerating execution timelines by 32%.
 - Established robust risk mitigation protocols and governance controls, ensuring 100% regulatory compliance across complex multi-stakeholder projects.
 - Managed multi-million dollar operational budgets, optimizing resource allocation and achieving an 18% cost efficiency improvement.
 - Developed data-driven KPI performance tracking models utilizing ${profile?.skills?.[0] || 'Data Analytics'}, enhancing executive reporting visibility.
@@ -980,7 +983,7 @@ Accomplished ${title} with extensive experience architecting high-availability p
 - Optimized database query performance and caching layers, scaling throughput by 3.5x under production load.
 
 ### Prior Senior Engineering Roles
-- Built containerized CI/CD pipelines with Docker & Kubernetes, cutting deployment rollback times to under 2 minutes.
+- Built containerized CI/CD deployment pipelines with Docker & Kubernetes, cutting deployment rollback times to under 2 minutes.
 - Established code review guidelines and automated static analysis standards across engineering teams.`;
 
     const coverLetterMarkdown = `Dear Hiring Team at ${company},
@@ -993,6 +996,10 @@ I look forward to discussing how my strategic expertise and execution focus can 
 
 Sincerely,
 ${candidateName}`;
+
+    const suggestions1 = isNonTech
+      ? ["Incorporate explicit stakeholder alignment and budget oversight metrics into primary experience bullets."]
+      : ["Incorporate explicit system throughput and automated test coverage metrics into primary experience bullets."];
 
     return {
       jobId: jobLead?.id || 'job-1',
@@ -1010,9 +1017,9 @@ ${candidateName}`;
           keywordMatchPercentage: 78,
           feedback: {
             strengths: ["Strong action verbs", "Clear metric structure in experience bullet points"],
-            missingKeywords: ["Stakeholder Alignment", "Program Execution", "Risk Mitigation"],
+            missingKeywords: isNonTech ? ["Stakeholder Alignment", "Program Execution", "Risk Mitigation"] : ["Distributed Architecture", "System Scalability"],
             guardrailViolations: [],
-            improvementSuggestions: ["Weave core domain keywords into summary and primary experience bullets."]
+            improvementSuggestions: suggestions1
           },
           tailoredResume: resumeMarkdown,
           coverLetter: coverLetterMarkdown
@@ -1038,7 +1045,7 @@ ${candidateName}`;
   function generateFallbackInterviewQuestion(jobTitle?: string, companyName?: string, questionIndex?: number) {
     const company = companyName || 'our team';
     const role = jobTitle || 'Senior Role';
-    const isNonTech = (role + ' ' + company).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
+    const isNonTech = (role + ' ' + company).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel/);
 
     const questions = isNonTech
       ? [
@@ -1119,25 +1126,49 @@ ${candidateName}`;
 
   // Helper fallback for STAR Evaluation
   function generateFallbackSTAREvaluation(questionText?: string, userAnswer?: string, jobTitle?: string) {
-    const wordCount = (userAnswer || '').split(/\s+/).filter(Boolean).length;
-    const isDetailed = wordCount > 25;
+    const cleanAnswer = (userAnswer || '').trim();
+    const wordCount = cleanAnswer.split(/\s+/).filter(Boolean).length;
     const role = jobTitle || 'Senior Candidate';
-    const isNonTech = (role + ' ' + (questionText || '')).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
+    const isNonTech = (role + ' ' + (questionText || '')).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel/);
 
     const sampleText = isNonTech
-      ? `Here is how a 100-point STAR answer sounds for a ${role} position:\n\n**Situation:** Our enterprise division faced a critical 20% delay on a major multi-stakeholder sustainability and operational project across regional sites.\n**Task:** As ${role}, I took over project governance to realign 4 cross-functional teams and accelerate delivery within the approved budget.\n**Action:** I established weekly milestone tracking, streamlined vendor review protocols, implemented data-driven risk dashboards, and facilitated alignment workshops across key department leads.\n**Result:** Successfully delivered the initiative 3 weeks ahead of the revised deadline, achieving a 100% compliance rating and reducing operational overhead by 18%.`
-      : `Here is how a 100-point STAR answer sounds for a ${role} position:\n\n**Situation:** Our primary API endpoint experienced latency spikes up to 800ms during peak user activity.\n**Task:** As ${role}, I was tasked with reducing p99 response time below 150ms without increasing infrastructure cost by more than 10%.\n**Action:** I implemented Redis multi-level caching, optimized database query indexing, and refactored synchronous calls into asynchronous worker queues.\n**Result:** Reduced p99 latency by 72% to 110ms and improved peak request throughput by 3.5x while keeping costs flat.`;
+      ? `Here is how a complete 100-point STAR answer sounds for a ${role} position:\n\n**Situation:** Our enterprise division faced a critical 20% delay on a major multi-stakeholder sustainability and operational project across regional sites.\n**Task:** As ${role}, I took over project governance to realign 4 cross-functional teams and accelerate delivery within the approved budget.\n**Action:** I established weekly milestone tracking, streamlined vendor review protocols, implemented data-driven risk dashboards, and facilitated alignment workshops across key department leads.\n**Result:** Successfully delivered the initiative 3 weeks ahead of the revised deadline, achieving a 100% compliance rating and reducing operational overhead by 18%.`
+      : `Here is how a complete 100-point STAR answer sounds for a ${role} position:\n\n**Situation:** Our primary API endpoint experienced latency spikes up to 800ms during peak user activity.\n**Task:** As ${role}, I was tasked with reducing p99 response time below 150ms without increasing infrastructure cost by more than 10%.\n**Action:** I implemented Redis multi-level caching, optimized database query indexing, and refactored synchronous calls into asynchronous worker queues.\n**Result:** Reduced p99 latency by 72% to 110ms and improved peak request throughput by 3.5x while keeping costs flat.`;
 
     const followUp = isNonTech
-      ? `"That's a solid breakdown! If project scope or regulatory requirements expanded mid-way, how would you re-prioritize deliverables without compromising quality?"`
-      : `"That's a solid breakdown! If user volume or operational complexity doubled overnight, what would be the very first bottleneck in that architecture and how would you address it?"`;
+      ? `"If project scope or regulatory requirements expanded mid-way, how would you re-prioritize deliverables without compromising quality?"`
+      : `"If user volume or operational complexity doubled overnight, what would be the very first bottleneck in that architecture and how would you address it?"`;
+
+    // STRICT CHECK FOR SHORT / INCOMPLETE ANSWERS
+    if (wordCount < 15 || cleanAnswer.length < 50) {
+      return {
+        overallScore: Math.min(28, Math.max(12, wordCount * 5)),
+        starScorecard: {
+          situationTask: 7,
+          actionClarity: 6,
+          resultMetrics: 4,
+          relevanceToRole: 8
+        },
+        keyStrengths: [
+          "Initial response submitted to the mock interview simulator."
+        ],
+        areasForImprovement: [
+          `Your response ("${cleanAnswer || 'No response'}") is far too brief (${wordCount} word${wordCount === 1 ? '' : 's'}). A complete STAR response requires detailed narrative sentences.`,
+          "A high-scoring answer requires a full Situation & Task setup, explicit Action steps, and quantifiable Result metrics."
+        ],
+        revisedSTARSample: sampleText,
+        followUpQuestion: followUp
+      };
+    }
+
+    const isDetailed = wordCount > 40;
 
     return {
-      overallScore: isDetailed ? 88 : 72,
+      overallScore: isDetailed ? 92 : 78,
       starScorecard: {
-        situationTask: isDetailed ? 23 : 18,
-        actionClarity: isDetailed ? 22 : 18,
-        resultMetrics: isDetailed ? 20 : 16,
+        situationTask: isDetailed ? 24 : 20,
+        actionClarity: isDetailed ? 23 : 20,
+        resultMetrics: isDetailed ? 22 : 18,
         relevanceToRole: isDetailed ? 23 : 20
       },
       keyStrengths: [
@@ -1159,6 +1190,10 @@ ${candidateName}`;
       const { profile, jobLead, companyIntel } = req.body;
       const ai = getGeminiClient();
 
+      const title = jobLead?.title || profile?.targetTitles?.[0] || 'Senior Role';
+      const company = jobLead?.company || 'Target Company';
+      const isNonTech = (title + ' ' + company).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel/);
+
       const prompt = `You are the Evaluator-Optimizer Resume & Cover Letter Tailor Node in CrewAI.
 
 INPUTS:
@@ -1166,29 +1201,36 @@ Candidate Name: ${profile?.name}
 Master Experience: ${JSON.stringify(profile?.masterExperienceBullets || [])}
 Master Skills: ${JSON.stringify(profile?.skills || [])}
 
-Job Title: ${jobLead?.title}
-Company: ${jobLead?.company}
+Job Title: ${title}
+Company: ${company}
 Job Description: ${jobLead?.description}
 Company Intel Brief: ${companyIntel ? JSON.stringify(companyIntel.cultureAndValues) : 'N/A'}
+
+STRICT DOMAIN ALIGNMENT DIRECTIVE:
+1. Detect candidate's target role domain from Job Title (${title}) and Company (${company}):
+   - If the role is Engineering Manager, Sustainability Lead, Director, Public Sector, Advisory, Sembcorp, Keppel, or Non-software:
+     * Tailor the resume to emphasize team leadership, project governance, stakeholder alignment, budget oversight, and operational safety.
+     * DO NOT write software engineering jargon like "React 19 micro-frontend", "PostgreSQL query performance", "Gemini API multi-agent" unless explicitly required by the job description!
+     * Provide domain-relevant optimizer suggestions in iteration logs (e.g. "Weave cross-functional stakeholder alignment and budget oversight into experience bullets").
 
 STRICT GUARDRAIL (#1 RULE):
 - You MUST NEVER invent experience, hallucinate skills, or fabricate metrics not grounded in the candidate's master experience.
 - You CAN reframe, emphasize keywords, and align STAR metrics present in master experience to the JD.
 
 Simulate 2 iterations of the Evaluator-Optimizer loop:
-- Iteration 1: Initial draft with evaluation feedback (missing keywords, initial ATS score ~82).
+- Iteration 1: Initial draft with evaluation feedback (missing domain keywords, initial ATS score ~82).
 - Iteration 2 (Final): Optimized draft incorporating feedback, passing ATS score (>= 94).
 
 Output JSON matching this schema:
 {
   "jobId": "${jobLead?.id || 'job-1'}",
-  "jobTitle": "${jobLead?.title || ''}",
-  "company": "${jobLead?.company || ''}",
+  "jobTitle": "${title}",
+  "company": "${company}",
   "finalAtsScore": 96,
   "keywordMatchPercentage": 94,
   "guardrailStatus": "PASS",
   "tailoredResumeMarkdown": "# Candidate Name\\n\\n## Professional Summary\\n...\\n\\n## Experience\\n...",
-  "coverLetterMarkdown": "Dear Hiring Team at ${jobLead?.company || 'Company'},\\n\\n...",
+  "coverLetterMarkdown": "Dear Hiring Team at ${company},\\n\\n...",
   "iterations": [
     {
       "version": 1,
@@ -1196,9 +1238,9 @@ Output JSON matching this schema:
       "keywordMatchPercentage": 78,
       "feedback": {
         "strengths": ["Strong action verbs", "Clear metric structure"],
-        "missingKeywords": ["GraphQL", "Distributed Systems", "Multi-Agent"],
+        "missingKeywords": ${isNonTech ? '["Stakeholder Alignment", "Program Execution", "Risk Mitigation"]' : '["System Scalability", "Performance Tuning"]'},
         "guardrailViolations": [],
-        "improvementSuggestions": ["Weave GraphQL and Distributed Systems into Apex Tech Labs bullet points"]
+        "improvementSuggestions": ${isNonTech ? '["Incorporate explicit stakeholder alignment and budget oversight metrics into primary experience bullets."]' : '["Incorporate target architecture and scaling metrics into primary experience bullets."]'}
       },
       "tailoredResume": "Draft 1 content...",
       "coverLetter": "Draft 1 cover letter..."
@@ -1300,6 +1342,16 @@ Return JSON object:
   app.post('/api/crew/interview/evaluate', async (req, res) => {
     try {
       const { questionText, userAnswer, rubric, jobTitle } = req.body;
+
+      const cleanAnswer = (userAnswer || '').trim();
+      const wordCount = cleanAnswer.split(/\s+/).filter(Boolean).length;
+      
+      // Strict guardrail for short / low-effort answers (< 15 words)
+      if (wordCount < 15 || cleanAnswer.length < 50) {
+        const fallbackEval = generateFallbackSTAREvaluation(questionText, userAnswer, jobTitle);
+        return res.json({ success: true, evaluation: fallbackEval, shortAnswer: true });
+      }
+
       const ai = getGeminiClient();
 
       const prompt = `You are the "STAR Method Evaluator Agent" in CrewAI.
@@ -1309,6 +1361,9 @@ QUESTION: ${questionText}
 TARGET ROLE: ${jobTitle}
 USER'S ANSWER: ${userAnswer}
 EVALUATION RUBRIC: ${JSON.stringify(rubric || {})}
+
+STRICT LENGTH & SUBSTANCE GUARDRAIL:
+- If the user answer is under 15 words or superficial (e.g. "my job", "I did a project"), give an overall score below 28/100 and explicitly note in areasForImprovement that the answer is far too brief.
 
 GUARDRAIL:
 - Do NOT give generic praise ("Great job!").

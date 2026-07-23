@@ -251,6 +251,16 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({
           {/* Evaluation Scorecard Display */}
           {currentTurn.evaluation && (
             <div className="bg-slate-900 border border-purple-500/30 rounded-2xl p-6 shadow-2xl space-y-6 animate-fadeIn">
+              {currentTurn.evaluation.overallScore < 40 && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3 text-amber-300 text-xs">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-bold text-amber-200 mb-0.5">Strict Evaluation Guardrail Triggered: Response Too Short</strong>
+                    Your response was too brief to demonstrate Situation, Task, Action, and Result structure. A complete answer requires detailed sentences explaining context, specific actions taken, and measurable metrics. Review the 100-Point Exemplar Response below to learn how to structure your answer.
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/30 text-purple-300">
