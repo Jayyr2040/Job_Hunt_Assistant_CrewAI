@@ -182,6 +182,21 @@ async function startServer() {
       ? `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority level mismatch.`
       : `Guardrail Failure: Role seniority mismatch (Junior entry position vs candidate target senior level).`;
 
+    function generateSearchUrl(title: string, company: string, sourceName?: string): string {
+      const query = encodeURIComponent(`${title} ${company}`);
+      const src = (sourceName || '').toLowerCase();
+      if (src.includes('mycareersfuture')) {
+        return `https://mycareersfuture.gov.sg/search?search=${query}`;
+      }
+      if (src.includes('jobstreet')) {
+        return `https://www.jobstreet.com.sg/en/job-search/${encodeURIComponent(title + ' ' + company).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-jobs/`;
+      }
+      if (src.includes('glassdoor')) {
+        return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${query}`;
+      }
+      return `https://www.linkedin.com/jobs/search/?keywords=${query}&location=Singapore`;
+    }
+
     // Return 6 leads across Passed Guardrails and Failed Guardrails tabs
     return [
       {
@@ -195,7 +210,7 @@ async function startServer() {
         workType: "Hybrid",
         visaSupported: true,
         source: isSingapore ? "MyCareersFuture SG" : "LinkedIn Jobs",
-        url: isSingapore ? "https://mycareersfuture.gov.sg" : "https://linkedin.com/jobs",
+        url: generateSearchUrl(title1, company1, isSingapore ? "MyCareersFuture SG" : "LinkedIn Jobs"),
         description: `${company1} is seeking a ${title1} in ${locationLabel}. Role focuses on strategic delivery, stakeholder management, and expertise in ${skillsList}.`,
         matchScore: 96,
         matchReasoning: `Strong alignment with candidate target titles (${title1}), skills (${skillsList}), and salary expectations.`,
@@ -214,7 +229,7 @@ async function startServer() {
         workType: "Hybrid",
         visaSupported: true,
         source: isSingapore ? "LinkedIn Singapore" : "Glassdoor",
-        url: isSingapore ? "https://linkedin.com/jobs" : "https://glassdoor.com",
+        url: generateSearchUrl(title2, company2, isSingapore ? "LinkedIn Singapore" : "Glassdoor"),
         description: `${company2} is expanding its core strategic team in ${locationLabel}. Looking for ${title2} experienced in cross-functional leadership, client advisory, and ${skillsList}.`,
         matchScore: 92,
         matchReasoning: `High compatibility with target domain background, senior experience level, and salary guardrails.`,
@@ -233,7 +248,7 @@ async function startServer() {
         workType: "Hybrid",
         visaSupported: true,
         source: isSingapore ? "MyCareersFuture SG" : "Financial Times Careers",
-        url: isSingapore ? "https://mycareersfuture.gov.sg" : "https://ft.com/jobs",
+        url: generateSearchUrl(`Principal ${title1} Strategy Lead`, isSingapore ? "DBS Bank" : "Barclays Capital", isSingapore ? "MyCareersFuture SG" : "LinkedIn"),
         description: `Strategic lead role responsible for regional program governance, cross-functional execution, and executive reporting on key enterprise initiatives.`,
         matchScore: 89,
         matchReasoning: `Strong match for candidate senior leadership profile and domain skills in ${skillsList}.`,
@@ -252,7 +267,7 @@ async function startServer() {
         workType: "Hybrid",
         visaSupported: true,
         source: isSingapore ? "JobStreet SG" : "LinkedIn Jobs",
-        url: isSingapore ? "https://jobstreet.com.sg" : "https://linkedin.com",
+        url: generateSearchUrl(`Senior ${title1} Advisor`, isSingapore ? "EcoVadis SG" : "Deloitte Advisory", isSingapore ? "JobStreet SG" : "LinkedIn Jobs"),
         description: `Senior advisor leading client engagement, regulatory compliance, and strategic program delivery across APAC regional markets.`,
         matchScore: 86,
         matchReasoning: `Good alignment with candidate target titles and domain experience in ${skillsList}.`,
@@ -271,7 +286,7 @@ async function startServer() {
         workType: "On-site",
         visaSupported: false,
         source: isSingapore ? "JobStreet SG" : "Indeed",
-        url: isSingapore ? "https://jobstreet.com.sg" : "https://indeed.com",
+        url: generateSearchUrl(title3, company3, isSingapore ? "JobStreet SG" : "Indeed"),
         description: `Junior entry-level administrative and basic research assistant position.`,
         matchScore: 25,
         matchReasoning: `Failed hard criteria guardrail: ${rejectionReason}`,
@@ -290,7 +305,7 @@ async function startServer() {
         workType: "On-site",
         visaSupported: false,
         source: "Local Classifieds",
-        url: "https://example.com/jobs",
+        url: generateSearchUrl("Part-time Data Entry", "Local Small Business SG", "JobStreet SG"),
         description: "Entry-level part-time temporary clerical support.",
         matchScore: 18,
         matchReasoning: `Failed hard criteria guardrail: Role is part-time contract entry level below candidate minimum salary threshold ($${minThreshold.toLocaleString()} ${currency}).`,
@@ -832,8 +847,22 @@ JSON Array output:`;
         },
       });
 
-      const leads = parseJsonSafely(jsonResponse.text, []);
-      if (Array.isArray(leads) && leads.length > 0) {
+      const rawLeads = parseJsonSafely(jsonResponse.text, []);
+      if (Array.isArray(rawLeads) && rawLeads.length > 0) {
+        const leads = rawLeads.map((l: any) => {
+          let u = l.url || '';
+          if (!u || u.endsWith('.gov.sg') || u.endsWith('.com') || u.endsWith('.com.sg') || u.endsWith('/jobs')) {
+            const query = encodeURIComponent(`${l.title || ''} ${l.company || ''}`);
+            if ((l.source || '').toLowerCase().includes('mycareersfuture')) {
+              u = `https://mycareersfuture.gov.sg/search?search=${query}`;
+            } else if ((l.source || '').toLowerCase().includes('jobstreet')) {
+              u = `https://www.jobstreet.com.sg/en/job-search/${encodeURIComponent((l.title || '') + ' ' + (l.company || '')).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-jobs/`;
+            } else {
+              u = `https://www.linkedin.com/jobs/search/?keywords=${query}&location=Singapore`;
+            }
+          }
+          return { ...l, url: u };
+        });
         res.json({ success: true, leads });
       } else {
         const fallbackLeads = generateFallbackLeadsForQuery(profile, searchQuery);
