@@ -69,9 +69,15 @@ export const ScoutingAgentView: React.FC<ScoutingAgentViewProps> = ({
             <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search roles e.g. Senior AI Platform Engineer, Staff Software Engineer..."
+              placeholder="Search roles e.g. Senior AI Platform Engineer in Singapore, Staff Backend Engineer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onRunScout(searchQuery);
+                }
+              }}
               className="w-full bg-gray-50 border border-gray-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-gray-900 focus:bg-white focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none transition-all font-medium"
             />
           </div>

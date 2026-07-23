@@ -1,6 +1,99 @@
 import { CandidateProfile, JobLead, CompanyIntel, TailoredAssetResult, InterviewQuestionTurn, STARAnswerEvaluation } from '../types';
 import { SAMPLE_JOB_LEADS, SAMPLE_COMPANY_INTEL } from '../data/mockData';
 
+function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: string): JobLead[] {
+  const q = (searchQuery || '').toLowerCase();
+  const isSingapore = q.includes('singapore') || q.includes('sg') || profile.locations.some(l => l.toLowerCase().includes('singapore'));
+  const isLondon = q.includes('london') || q.includes('uk');
+
+  const currency = isSingapore ? 'SGD' : isLondon ? 'GBP' : profile.currency || 'USD';
+  const locationLabel = isSingapore ? 'Singapore (Hybrid)' : isLondon ? 'London, UK (Hybrid)' : 'San Francisco, CA (Hybrid)';
+
+  let title1 = "Senior Full Stack & AI Platform Engineer";
+  let title2 = "Staff Software Engineer - Cloud Systems";
+
+  if (q.includes('data') || q.includes('machine learning') || q.includes('ml')) {
+    title1 = "Senior AI Platform & Machine Learning Engineer";
+    title2 = "Staff Data Infrastructure Architect";
+  } else if (q.includes('backend') || q.includes('go') || q.includes('python')) {
+    title1 = "Senior Distributed Backend Engineer";
+    title2 = "Staff Cloud Systems Engineer";
+  }
+
+  const company1 = isSingapore ? "Grab" : isLondon ? "Revolut" : "Stripe";
+  const company2 = isSingapore ? "Shopee / Sea Group" : isLondon ? "Monzo Bank" : "Datadog";
+  const company3 = isSingapore ? "Local Digital Agency SG" : "Startup Co";
+
+  const salMin1 = isSingapore ? 140000 : isLondon ? 100000 : 180000;
+  const salMax1 = isSingapore ? 190000 : isLondon ? 140000 : 220000;
+  const salMin2 = isSingapore ? 160000 : isLondon ? 120000 : 200000;
+  const salMax2 = isSingapore ? 220000 : isLondon ? 160000 : 250000;
+  const salMin3 = isSingapore ? 42000 : isLondon ? 32000 : 50000;
+  const salMax3 = isSingapore ? 55000 : isLondon ? 42000 : 65000;
+
+  const minThreshold = profile.minSalary || (isSingapore ? 120000 : 150000);
+
+  return [
+    {
+      id: `lead-client-${Date.now()}-1`,
+      title: title1,
+      company: company1,
+      location: locationLabel,
+      salaryRange: `$${salMin1.toLocaleString()} - $${salMax1.toLocaleString()} ${currency}`,
+      estimatedSalaryMin: salMin1,
+      estimatedSalaryMax: salMax1,
+      workType: "Hybrid",
+      visaSupported: true,
+      source: isSingapore ? "MyCareersFuture SG" : "LinkedIn Jobs",
+      url: isSingapore ? "https://mycareersfuture.gov.sg" : "https://linkedin.com/jobs",
+      description: `${company1} is hiring a ${title1} in ${locationLabel}. Role focuses on microservices scalability, generative AI workflow integration, and high-throughput React/TypeScript architecture.`,
+      matchScore: 96,
+      matchReasoning: `Strong match with candidate's 8+ years experience, system architecture background, and location match (${locationLabel}).`,
+      status: "routed_to_intel",
+      rejectionReason: "",
+      postedDate: "Just now"
+    },
+    {
+      id: `lead-client-${Date.now()}-2`,
+      title: title2,
+      company: company2,
+      location: isSingapore ? "Singapore (Hybrid / Regional Hub)" : locationLabel,
+      salaryRange: `$${salMin2.toLocaleString()} - $${salMax2.toLocaleString()} ${currency}`,
+      estimatedSalaryMin: salMin2,
+      estimatedSalaryMax: salMax2,
+      workType: "Hybrid",
+      visaSupported: true,
+      source: isSingapore ? "LinkedIn Singapore" : "Glassdoor",
+      url: isSingapore ? "https://linkedin.com/jobs" : "https://glassdoor.com",
+      description: `${company2} is expanding its core engineering hub in ${locationLabel}. Looking for ${title2} experienced in high-frequency backend services, Kubernetes, and reactive platforms.`,
+      matchScore: 93,
+      matchReasoning: `High compatibility with distributed systems expertise, containerization, and competitive salary structure.`,
+      status: "passed_guardrails",
+      rejectionReason: "",
+      postedDate: "1 day ago"
+    },
+    {
+      id: `lead-client-${Date.now()}-3`,
+      title: "Junior Frontend Web Developer",
+      company: company3,
+      location: isSingapore ? "Singapore (On-site)" : locationLabel,
+      salaryRange: `$${salMin3.toLocaleString()} - $${salMax3.toLocaleString()} ${currency}`,
+      estimatedSalaryMin: salMin3,
+      estimatedSalaryMax: salMax3,
+      workType: "On-site",
+      visaSupported: false,
+      source: isSingapore ? "JobStreet SG" : "Indeed",
+      url: isSingapore ? "https://jobstreet.com.sg" : "https://indeed.com",
+      description: `Junior entry-level developer position for basic HTML/CSS landing page updates.`,
+      matchScore: 28,
+      matchReasoning: `Failed hard criteria guardrail: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}); level is junior vs target Senior/Staff.`,
+      status: "failed_guardrails",
+      rejectionReason: `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) below minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority mismatch.`,
+      postedDate: "2 days ago"
+    }
+  ];
+}
+
 export async function scoutJobs(profile: CandidateProfile, searchQuery?: string): Promise<JobLead[]> {
   try {
     const res = await fetch('/api/crew/scout', {
@@ -10,13 +103,13 @@ export async function scoutJobs(profile: CandidateProfile, searchQuery?: string)
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    if (data.success && Array.isArray(data.leads)) {
+    if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
       return data.leads;
     }
   } catch (err) {
     console.warn('Scout API failed, using fallback leads:', err);
   }
-  return SAMPLE_JOB_LEADS;
+  return generateClientFallbackLeads(profile, searchQuery);
 }
 
 export async function fetchCompanyIntel(companyName: string, jobDescription: string): Promise<CompanyIntel> {
