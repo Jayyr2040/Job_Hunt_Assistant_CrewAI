@@ -76,19 +76,34 @@ function generateClientFallbackLeads(profile: CandidateProfile, searchQuery?: st
     ? `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority level mismatch.`
     : `Guardrail Failure: Role level mismatch (Junior entry position vs candidate target senior level).`;
 
+  function cleanTerm(str: string): string {
+    if (!str) return '';
+    return str
+      .replace(/\/.*$/, '')
+      .replace(/\(.*?\)/g, '')
+      .replace(/\b(SG|Singapore|Inc\.|Pte\.|Ltd\.|LLC|Corporation|Group)\b/gi, '')
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function generateSearchUrl(title: string, company: string, sourceName?: string): string {
-    const query = encodeURIComponent(`${title} ${company}`);
+    const cleanComp = cleanTerm(company) || company.trim();
+    const cleanTit = cleanTerm(title) || title.trim();
+    const queryStr = `${cleanComp} ${cleanTit}`.trim();
+    const encodedQuery = encodeURIComponent(queryStr);
     const src = (sourceName || '').toLowerCase();
+
     if (src.includes('mycareersfuture')) {
-      return `https://mycareersfuture.gov.sg/search?search=${query}`;
+      return `https://mycareersfuture.gov.sg/search?search=${encodedQuery}`;
     }
     if (src.includes('jobstreet')) {
-      return `https://www.jobstreet.com.sg/en/job-search/${encodeURIComponent(title + ' ' + company).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-jobs/`;
+      return `https://www.jobstreet.com.sg/jobs?keywords=${encodedQuery}`;
     }
     if (src.includes('glassdoor')) {
-      return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${query}`;
+      return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodedQuery}`;
     }
-    return `https://www.linkedin.com/jobs/search/?keywords=${query}&location=Singapore`;
+    return `https://www.linkedin.com/jobs/search/?keywords=${encodedQuery}&location=Singapore`;
   }
 
   return [
