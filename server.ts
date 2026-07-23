@@ -180,8 +180,31 @@ async function startServer() {
     };
   }
 
+  // Safe JSON parser helper to handle markdown blocks (e.g. ```json ... ```) from LLMs/Ollama
+  function parseJsonSafely(text: string, fallback: any = null) {
+    if (!text) return fallback;
+    try {
+      return JSON.parse(text);
+    } catch (e1) {
+      const cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+      try {
+        return JSON.parse(cleaned);
+      } catch (e2) {
+        const jsonMatch = text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+        if (jsonMatch && jsonMatch[1]) {
+          try {
+            return JSON.parse(jsonMatch[1].trim());
+          } catch (e3) {
+            // failed
+          }
+        }
+        return fallback;
+      }
+    }
+  }
+
   // Helper to query local Ollama server if available as a fallback when Gemini is unavailable or quota limited
-  async function tryOllamaGenerate(prompt: string): Promise<{ text: string } | null> {
+  async function tryOllamaGenerate(prompt: string, isJson: boolean = false): Promise<{ text: string } | null> {
     const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
     try {
       const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(1500) });
@@ -193,24 +216,33 @@ async function startServer() {
       const modelName = models[0].name || models[0].model || 'llama3.2';
       console.log(`[Ollama Fallback] Gemini API unavailable/quota-limited. Calling local Ollama model "${modelName}" at ${ollamaHost}...`);
 
+      const formattedPrompt = isJson
+        ? `${prompt}\n\nIMPORTANT: Output ONLY valid raw JSON without extra commentary or markdown formatting.`
+        : prompt;
+
       const genRes = await fetch(`${ollamaHost}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: modelName,
-          prompt: prompt,
+          prompt: formattedPrompt,
           stream: false,
+          format: isJson ? 'json' : undefined,
         }),
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(60000),
       });
 
-      if (!genRes.ok) return null;
+      if (!genRes.ok) {
+        console.warn(`[Ollama Fallback] Ollama generate response not OK (${genRes.status})`);
+        return null;
+      }
       const genData = (await genRes.json()) as any;
       if (genData && genData.response) {
         return { text: genData.response };
       }
       return null;
     } catch (e: any) {
+      console.warn(`[Ollama Fallback] Ollama request failed: ${e?.message || e}`);
       return null;
     }
   }
@@ -280,9 +312,26 @@ async function startServer() {
       }
     }
 
-    // If all Gemini attempts failed, try local Ollama if running
+    // Extract prompt string for Ollama
+    let promptStr = '';
     if (typeof params?.contents === 'string') {
-      const ollamaResponse = await tryOllamaGenerate(params.contents);
+      promptStr = params.contents;
+    } else if (Array.isArray(params?.contents)) {
+      promptStr = params.contents
+        .map((item: any) => {
+          if (typeof item === 'string') return item;
+          if (item?.parts) return item.parts.map((p: any) => p.text || '').join('\n');
+          return JSON.stringify(item);
+        })
+        .join('\n');
+    } else if (params?.contents) {
+      promptStr = JSON.stringify(params.contents);
+    }
+
+    const isJsonRequested = params?.config?.responseMimeType === 'application/json';
+
+    if (promptStr) {
+      const ollamaResponse = await tryOllamaGenerate(promptStr, isJsonRequested);
       if (ollamaResponse) {
         return ollamaResponse;
       }
@@ -397,7 +446,7 @@ JSON Array output:`;
         },
       });
 
-      const leads = JSON.parse(jsonResponse.text || '[]');
+      const leads = parseJsonSafely(jsonResponse.text, []);
       if (Array.isArray(leads) && leads.length > 0) {
         res.json({ success: true, leads });
       } else {
@@ -481,7 +530,7 @@ ${rawText}`;
         },
       });
 
-      const intel = JSON.parse(jsonResponse.text || '{}');
+      const intel = parseJsonSafely(jsonResponse.text, {});
       res.json({ success: true, intel });
     } catch (err: any) {
       console.warn('[Company Intel Agent] API call encountered error/quota limit, serving intel fallback:', err.message || err);
@@ -683,7 +732,7 @@ Output JSON matching this schema:
         },
       });
 
-      const result = JSON.parse(response.text || '{}');
+      const result = parseJsonSafely(response.text, {});
       res.json({ success: true, result });
     } catch (err: any) {
       console.warn('[Resume Tailor Agent] API error/key missing, serving fallback result:', err.message || err);
@@ -731,7 +780,7 @@ Return JSON object:
         },
       });
 
-      const questionTurn = JSON.parse(response.text || '{}');
+      const questionTurn = parseJsonSafely(response.text, {});
       res.json({ success: true, questionTurn });
     } catch (err: any) {
       console.warn('[Interview Question Agent] API error/key missing, serving fallback question:', err.message || err);
@@ -786,7 +835,7 @@ Output JSON:
         },
       });
 
-      const evaluation = JSON.parse(response.text || '{}');
+      const evaluation = parseJsonSafely(response.text, {});
       res.json({ success: true, evaluation });
     } catch (err: any) {
       console.warn('[STAR Evaluator Agent] API error/key missing, serving fallback evaluation:', err.message || err);
