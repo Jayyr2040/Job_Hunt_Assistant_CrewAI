@@ -345,7 +345,7 @@ async function startServer() {
         method: 'POST',
         headers,
         body: JSON.stringify(bodyPayload),
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(25000), // 25s timeout for cloud router
       });
 
       if (!res.ok) {
@@ -371,7 +371,7 @@ async function startServer() {
     return enqueueOllamaTask(async () => {
       const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
       try {
-        const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(2500) });
+        const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(1500) });
         if (!tagsRes.ok) {
           return null;
         }
@@ -401,10 +401,10 @@ async function startServer() {
             options: {
               temperature: 0.2,
               num_ctx: 2048,
-              num_predict: 1024,
+              num_predict: 512,
             },
           }),
-          signal: AbortSignal.timeout(180000), // 3 minutes allowance for local inference on CPU/GPU
+          signal: AbortSignal.timeout(20000), // 20 seconds max per local agent task to keep dev server snappy
         });
 
         if (!genRes.ok) {
@@ -417,7 +417,7 @@ async function startServer() {
         }
         return null;
       } catch (e: any) {
-        console.warn(`[Ollama Engine] Local inference attempt notice: ${e?.message || e}`);
+        console.warn(`[Ollama Engine] Local inference timeout/notice: ${e?.message || e}`);
         return null;
       }
     });
