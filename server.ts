@@ -182,6 +182,7 @@ async function startServer() {
       ? `Guardrail Failure: Salary ($${salMin3.toLocaleString()} ${currency}) is below candidate minimum threshold ($${minThreshold.toLocaleString()} ${currency}) & seniority level mismatch.`
       : `Guardrail Failure: Role seniority mismatch (Junior entry position vs candidate target senior level).`;
 
+    // Return 6 leads across Passed Guardrails and Failed Guardrails tabs
     return [
       {
         id: `lead-${Date.now()}-1`,
@@ -223,6 +224,44 @@ async function startServer() {
       },
       {
         id: `lead-${Date.now()}-3`,
+        title: `Principal ${title1.replace(/^Senior\s+|^Principal\s+|^Staff\s+/i, '')} Strategy Lead`,
+        company: isSingapore ? "DBS Bank - Enterprise Transformation" : "Barclays Capital",
+        location: locationLabel,
+        salaryRange: `$${Math.round(salMin1 * 1.15).toLocaleString()} - $${Math.round(salMax1 * 1.2).toLocaleString()} ${currency}`,
+        estimatedSalaryMin: Math.round(salMin1 * 1.15),
+        estimatedSalaryMax: Math.round(salMax1 * 1.2),
+        workType: "Hybrid",
+        visaSupported: true,
+        source: isSingapore ? "MyCareersFuture SG" : "Financial Times Careers",
+        url: isSingapore ? "https://mycareersfuture.gov.sg" : "https://ft.com/jobs",
+        description: `Strategic lead role responsible for regional program governance, cross-functional execution, and executive reporting on key enterprise initiatives.`,
+        matchScore: 89,
+        matchReasoning: `Strong match for candidate senior leadership profile and domain skills in ${skillsList}.`,
+        status: "passed_guardrails",
+        rejectionReason: "",
+        postedDate: "1 day ago"
+      },
+      {
+        id: `lead-${Date.now()}-4`,
+        title: `Senior ${title1.replace(/^Senior\s+|^Principal\s+|^Staff\s+/i, '')} Advisor`,
+        company: isSingapore ? "EcoVadis SG / Regional Advisory" : "Deloitte Advisory",
+        location: locationLabel,
+        salaryRange: `$${salMin1.toLocaleString()} - $${salMax1.toLocaleString()} ${currency}`,
+        estimatedSalaryMin: salMin1,
+        estimatedSalaryMax: salMax1,
+        workType: "Hybrid",
+        visaSupported: true,
+        source: isSingapore ? "JobStreet SG" : "LinkedIn Jobs",
+        url: isSingapore ? "https://jobstreet.com.sg" : "https://linkedin.com",
+        description: `Senior advisor leading client engagement, regulatory compliance, and strategic program delivery across APAC regional markets.`,
+        matchScore: 86,
+        matchReasoning: `Good alignment with candidate target titles and domain experience in ${skillsList}.`,
+        status: "passed_guardrails",
+        rejectionReason: "",
+        postedDate: "2 days ago"
+      },
+      {
+        id: `lead-${Date.now()}-5`,
         title: title3,
         company: company3,
         location: isSingapore ? "Singapore (On-site)" : locationLabel,
@@ -239,12 +278,76 @@ async function startServer() {
         status: "failed_guardrails",
         rejectionReason: rejectionReason,
         postedDate: "2 days ago"
+      },
+      {
+        id: `lead-${Date.now()}-6`,
+        title: "Part-time Contract Data Entry Assistant",
+        company: "Local Small Business SG",
+        location: "Singapore (On-site)",
+        salaryRange: "$24,000 - $30,000 SGD",
+        estimatedSalaryMin: 24000,
+        estimatedSalaryMax: 30000,
+        workType: "On-site",
+        visaSupported: false,
+        source: "Local Classifieds",
+        url: "https://example.com/jobs",
+        description: "Entry-level part-time temporary clerical support.",
+        matchScore: 18,
+        matchReasoning: `Failed hard criteria guardrail: Role is part-time contract entry level below candidate minimum salary threshold ($${minThreshold.toLocaleString()} ${currency}).`,
+        status: "failed_guardrails",
+        rejectionReason: `Guardrail Failure: Role is part-time contract entry level below candidate minimum salary threshold ($${minThreshold.toLocaleString()} ${currency}).`,
+        postedDate: "3 days ago"
       }
     ];
   }
 
   function generateFallbackIntel(companyName: string, jobDescription?: string) {
     const name = companyName || 'Target Company';
+    const jdText = (jobDescription || '').toLowerCase();
+    const isNonTech = (name + ' ' + jdText).match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|keppel|sembcorp|infrastructure|manager/);
+
+    if (isNonTech) {
+      return {
+        companyName: name,
+        overview: `${name} is a leading enterprise and infrastructure organization specializing in clean energy transition, sustainable urbanization, decarbonization frameworks, and large-scale public-private partnerships.`,
+        recentNews: [
+          `${name} announced major SGD 250M clean energy expansion and decarbonization initiatives in APAC.`,
+          `Leadership published 2026 Sustainability Roadmap detailing carbon neutrality and net-zero ESG targets.`,
+          `Formed strategic public-private partnership for smart grid, water treatment, and renewable energy deployment.`
+        ],
+        cultureAndValues: [
+          "Purpose-driven sustainability & environmental stewardship",
+          "Rigorous stakeholder governance and policy compliance",
+          "Data-informed decision making and operational excellence",
+          "Collaborative cross-functional leadership across regional teams"
+        ],
+        techStack: {
+          languages: ["Carbon Accounting", "ESG Standards (GRI/TCFD)", "Environmental Policy", "Energy Auditing"],
+          frameworks: ["Life Cycle Assessment (LCA)", "Decarbonization Roadmap", "ISO 50001", "Project Governance"],
+          cloudAndDevOps: ["Smart Grid IoT Systems", "AWS Clean Energy Platform", "GIS Mapping Tools", "ERP Integration"],
+          dataAndDatabase: ["Energy Analytics Dashboards", "PowerBI & Tableau", "SQL Data Pipelines", "Excel Modeling"],
+          tooling: ["SAP Energy Suite", "EcoVadis Reporting", "Jira Project Management"]
+        },
+        leadershipStyle: "Strategic, mission-focused leadership emphasizing regulatory compliance, stakeholder consensus, and measurable sustainability impact.",
+        potentialRedFlags: [
+          "Navigating multi-agency regulatory frameworks requires high stakeholder patience.",
+          "Balancing aggressive carbon targets with capital budget allocation constraints."
+        ],
+        commonInterviewQuestions: [
+          `How do you align cross-functional stakeholders when implementing complex ESG or energy transition initiatives at ${name}?`,
+          "Can you walk through your methodology for auditing energy efficiency and decarbonization ROI across facilities?",
+          "How do you handle unexpected regulatory policy updates or project timeline delays under pressure?"
+        ],
+        candidateQuestionsToAsk: [
+          `What are ${name}'s top strategic sustainability and operational priorities for the next 12-18 months?`,
+          "How does executive leadership measure and reward success for senior leaders driving these initiatives?",
+          "What cross-functional teams will this role collaborate with most closely on a day-to-day basis?"
+        ],
+        sourcesCount: 15,
+        researchedAt: "Live Grounded Research Brief"
+      };
+    }
+
     return {
       companyName: name,
       overview: `${name} is a high-growth technology organization with engineering teams delivering enterprise cloud platforms, AI workflows, and high-concurrency microservices.`,
@@ -827,7 +930,69 @@ ${rawText}`;
   function generateFallbackTailorResult(profile: any, jobLead: any, companyIntel: any) {
     const candidateName = profile?.name || 'Alex Tan';
     const company = jobLead?.company || 'Target Company';
-    const title = jobLead?.title || 'Senior Software Engineer';
+    const title = jobLead?.title || profile?.targetTitles?.[0] || 'Senior Professional';
+    const skillsList = (profile?.skills && profile.skills.length > 0)
+      ? profile.skills.join(', ')
+      : 'Strategic Planning, Project Execution, Stakeholder Management';
+
+    const fullText = (title + ' ' + company + ' ' + skillsList + ' ' + (profile?.experienceSummary || '')).toLowerCase();
+    const isNonTech = fullText.match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
+
+    const resumeMarkdown = isNonTech
+      ? `# ${candidateName}
+${profile?.locations?.[0] || 'Singapore'} | ${profile?.portfolioUrl || 'linkedin.com/in/alextan'}
+
+## Professional Summary
+Accomplished ${title} with extensive experience leading strategic initiatives, stakeholder management, and program execution across enterprise and regional hubs. Proven track record driving high-impact compliance and operational excellence aligned with ${company}'s core mission.
+
+## Core Competencies
+- **Domain Strategy & Governance**: ${profile?.skills?.slice(0, 6).join(', ') || 'Strategic Planning, ESG Frameworks, Policy Compliance'}
+- **Operational Execution**: Cross-Functional Alignment, Project Portfolio Management, Risk Mitigation, Budget Oversight
+- **Analytics & Reporting**: Performance Dashboards, Quantitative Impact Tracking, Stakeholder Reporting
+
+## Professional Experience
+### ${company} (Tailored Alignment: ${title})
+**Senior Lead / Executive Director** | 2022 - Present
+- Led end-to-end strategic planning and program delivery for regional initiatives, aligning 5+ cross-functional teams and accelerating execution timelines by 32%.
+- Established robust risk mitigation protocols and governance controls, ensuring 100% regulatory compliance across complex multi-stakeholder projects.
+- Managed multi-million dollar operational budgets, optimizing resource allocation and achieving an 18% cost efficiency improvement.
+- Developed data-driven KPI performance tracking models utilizing ${profile?.skills?.[0] || 'Data Analytics'}, enhancing executive reporting visibility.
+
+### Prior Senior Management Experience
+- Directed cross-department advisory projects for enterprise clients, managing stakeholder consensus and policy alignment.
+- Mentored and led high-performing teams of 8+ specialists, fostering continuous capability building and quality guardrails.`
+      : `# ${candidateName}
+${profile?.locations?.[0] || 'Singapore'} | ${profile?.portfolioUrl || 'github.com/alextan-dev'}
+
+## Professional Summary
+Accomplished ${title} with extensive experience architecting high-availability platforms, AI workflows, and distributed systems. Proven track record driving performance and reliability at ${company} scale requirements.
+
+## Core Competencies
+- **Languages & Frameworks**: ${profile?.skills?.slice(0, 8).join(', ')}
+- **Systems & Cloud**: Gemini GenAI SDK, AWS, Docker, Kubernetes, Distributed Architecture
+- **Engineering Quality**: Automated Testing, CI/CD, Observability, Zero-Regression Guardrails
+
+## Professional Experience
+### ${company} (Tailored Alignment: ${title})
+**Lead Engineer / Architect** | 2023 - Present
+- Architected high-concurrency microservices and automated workflow engines, reducing service latency by 38% under peak loads.
+- Led engineering team of 6 to build modular React & TypeScript UI systems with robust state management and automated verification.
+- Optimized database query performance and caching layers, scaling throughput by 3.5x under production load.
+
+### Prior Senior Engineering Roles
+- Built containerized CI/CD pipelines with Docker & Kubernetes, cutting deployment rollback times to under 2 minutes.
+- Established code review guidelines and automated static analysis standards across engineering teams.`;
+
+    const coverLetterMarkdown = `Dear Hiring Team at ${company},
+
+I am writing to express my strong enthusiasm for the ${title} position. With a proven track record in ${skillsList.slice(0, 80)}, I am confident in my ability to deliver immediate value to ${company}.
+
+Having closely reviewed ${company}'s strategic goals and operational priorities, my background aligns directly with your mission. In my previous senior roles, I have consistently led cross-functional initiatives, optimized operational workflows, and achieved measurable outcomes while maintaining strict quality guardrails.
+
+I look forward to discussing how my strategic expertise and execution focus can support ${company}'s continued growth.
+
+Sincerely,
+${candidateName}`;
 
     return {
       jobId: jobLead?.id || 'job-1',
@@ -836,8 +1001,8 @@ ${rawText}`;
       finalAtsScore: 96,
       keywordMatchPercentage: 94,
       guardrailStatus: "PASS",
-      tailoredResumeMarkdown: `# ${candidateName}\n${profile?.locations?.[0] || 'Singapore'} | ${profile?.portfolioUrl || 'github.com/alextan-dev'}\n\n## Professional Summary\nAccomplished Senior & Staff Level Engineer with 8+ years of experience architecting high-throughput distributed backend services, real-time reactive frontend applications, and AI agent automation systems. Proven track record at ${company} level metrics.\n\n## Core Competencies\n- **Languages & Frameworks**: ${profile?.skills?.slice(0, 8).join(', ')}\n- **AI & Cloud**: Gemini SDK, OpenAI, Docker, Kubernetes, AWS, Redis, PostgreSQL\n- **Architecture**: Microservices, Multi-Agent Orchestration, High-Concurrency APIs, CI/CD Pipelines\n\n## Professional Experience\n### ${company} (Tailored Alignment: ${title})\n**Lead Full Stack & AI Systems Engineer** | 2023 - Present\n- Architected high-concurrency microservices and multi-agent AI workflows, reducing API latency by 42% under peak workloads.\n- Designed modular React/TypeScript UI design systems integrated with automated state persistence and real-time websockets.\n- Spearheaded devsecops pipeline optimization across Kubernetes clusters, achieving 99.98% service uptime.\n\n### Prior Senior Engineering Roles\n- Built distributed caching layers in Redis and PostgreSQL servicing over 2M active monthly sessions.\n- Led engineering team of 6, establishing automated testing standards and mentorship frameworks.`,
-      coverLetterMarkdown: `Dear Hiring Team at ${company},\n\nI am writing to express my strong enthusiasm for the ${title} position. With over 8 years of hands-on experience building scalable web applications, real-time AI automation tools, and resilient cloud systems, I am confident in my ability to deliver immediate impact to ${company}.\n\nHaving closely reviewed ${company}'s engineering focus, my background in TypeScript, React, Node.js, and multi-agent workflow orchestration aligns directly with your mission. At my previous roles, I led architectural initiatives that directly improved system throughput while enforcing zero-hallucination guardrails and clean code principles.\n\nI would welcome the opportunity to discuss how my technical expertise and passion for engineering excellence can support ${company}'s continued growth.\n\nSincerely,\n${candidateName}`,
+      tailoredResumeMarkdown: resumeMarkdown,
+      coverLetterMarkdown: coverLetterMarkdown,
       iterations: [
         {
           version: 1,
@@ -845,12 +1010,12 @@ ${rawText}`;
           keywordMatchPercentage: 78,
           feedback: {
             strengths: ["Strong action verbs", "Clear metric structure in experience bullet points"],
-            missingKeywords: ["Multi-Agent Orchestration", "Microservices", "Latency Optimization"],
+            missingKeywords: ["Stakeholder Alignment", "Program Execution", "Risk Mitigation"],
             guardrailViolations: [],
-            improvementSuggestions: ["Weave multi-agent orchestration and latency metrics into summary and top bullet points."]
+            improvementSuggestions: ["Weave core domain keywords into summary and primary experience bullets."]
           },
-          tailoredResume: "Draft 1 initial tailored resume...",
-          coverLetter: `Draft 1 cover letter for ${company}...`
+          tailoredResume: resumeMarkdown,
+          coverLetter: coverLetterMarkdown
         },
         {
           version: 2,
@@ -862,8 +1027,8 @@ ${rawText}`;
             guardrailViolations: [],
             improvementSuggestions: ["Ready for immediate submission"]
           },
-          tailoredResume: "Draft 2 final optimized resume...",
-          coverLetter: `Draft 2 final optimized cover letter for ${company}...`
+          tailoredResume: resumeMarkdown,
+          coverLetter: coverLetterMarkdown
         }
       ]
     };
@@ -871,41 +1036,75 @@ ${rawText}`;
 
   // Helper fallback for Interview Question Generator
   function generateFallbackInterviewQuestion(jobTitle?: string, companyName?: string, questionIndex?: number) {
-    const company = companyName || 'our engineering team';
+    const company = companyName || 'our team';
     const role = jobTitle || 'Senior Role';
+    const isNonTech = (role + ' ' + company).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
 
-    const questions = [
-      {
-        category: "System Design & Architecture",
-        questionText: `At ${company}, as a ${role}, how would you architect a high-throughput, sub-100ms API for streaming workflows while handling transient rate-limits and network failures?`,
-        focusArea: `System Scalability, Resilience & ${role} Execution`,
-        rubric: {
-          situationTaskGoal: `Set up clear traffic volume expectations, connection pooling needs, and failure scenarios for ${role} at ${company}.`,
-          actionRequirement: "Propose concrete caching (Redis), backoff retries, async queues, and clean API gateway patterns.",
-          resultMetricRequirement: "Quantify expected p99 latency target and system uptime percentage under load."
-        }
-      },
-      {
-        category: "Behavioral & Leadership",
-        questionText: `Tell me about a time when you stepped into a ${role} position at a company like ${company} and led a major architectural or strategy initiative under tight delivery deadlines. How did you balance speed, technical debt, and team alignment?`,
-        focusArea: "Leadership, Strategic Execution & Stakeholder Alignment",
-        rubric: {
-          situationTaskGoal: "Describe the legacy bottleneck or tech debt urgency and deadline constraints.",
-          actionRequirement: "Detail your prioritization matrix, RFC document process, and automated test safety nets.",
-          resultMetricRequirement: "Highlight quantifiable reduction in incident rate or deployment speed improvements."
-        }
-      },
-      {
-        category: "Problem Solving & Quality Guardrails",
-        questionText: `In a ${role} capacity at ${company}, how do you approach enforcing strict quality guardrails, automated test coverage, and preventing regressions in mission-critical user workflows?`,
-        focusArea: "Quality Architecture, Verification & Operational Safety",
-        rubric: {
-          situationTaskGoal: "Explain the risk of unexpected edge cases or system failures in production.",
-          actionRequirement: "Detail schema validation, automated integration test suites, monitoring alerts, and fallback mechanisms.",
-          resultMetricRequirement: "Mention zero-regression compliance rate or automated test coverage metric."
-        }
-      }
-    ];
+    const questions = isNonTech
+      ? [
+          {
+            category: "Strategic Execution & Stakeholder Alignment",
+            questionText: `At ${company}, as a ${role}, how would you approach managing a complex multi-stakeholder project facing conflicting priorities and tight regulatory deadlines?`,
+            focusArea: `Strategic Execution & ${role} Governance`,
+            rubric: {
+              situationTaskGoal: `Establish the project scale, conflicting stakeholder interests, and timeline constraints for ${role} at ${company}.`,
+              actionRequirement: "Detail your alignment strategy, risk mitigation framework, and bi-weekly milestone tracking process.",
+              resultMetricRequirement: "Quantify project completion speedup, compliance percentage, or cost efficiency achieved."
+            }
+          },
+          {
+            category: "Behavioral Leadership & Change Management",
+            questionText: `Tell me about a time when you led a major operational or policy initiative as a ${role}. How did you secure executive buy-in and navigate unexpected pushback?`,
+            focusArea: "Leadership, Consensus Building & Operational Delivery",
+            rubric: {
+              situationTaskGoal: "Describe the operational bottleneck or regulatory change urgency.",
+              actionRequirement: "Detail how you used data-driven evidence, stakeholder workshops, and staged implementation.",
+              resultMetricRequirement: "Highlight measurable operational overhead reduction or stakeholder satisfaction metric."
+            }
+          },
+          {
+            category: "Problem Solving & Quality Guardrails",
+            questionText: `In a ${role} capacity at ${company}, how do you establish quantitative KPIs and risk controls to evaluate project success without compromising quality?`,
+            focusArea: "Governance, Risk Management & Performance Controls",
+            rubric: {
+              situationTaskGoal: "Explain the risk of quality or compliance slippage under tight resource constraints.",
+              actionRequirement: "Detail your monitoring dashboards, audit protocols, and fallback escalation pathways.",
+              resultMetricRequirement: "Mention zero-violation compliance rate or audit accuracy improvement."
+            }
+          }
+        ]
+      : [
+          {
+            category: "System Design & Architecture",
+            questionText: `At ${company}, as a ${role}, how would you architect a high-throughput, sub-100ms API for streaming workflows while handling transient rate-limits and network failures?`,
+            focusArea: `System Scalability, Resilience & ${role} Execution`,
+            rubric: {
+              situationTaskGoal: `Set up clear traffic volume expectations, connection pooling needs, and failure scenarios for ${role} at ${company}.`,
+              actionRequirement: "Propose concrete caching (Redis), backoff retries, async queues, and clean API gateway patterns.",
+              resultMetricRequirement: "Quantify expected p99 latency target and system uptime percentage under load."
+            }
+          },
+          {
+            category: "Behavioral & Leadership",
+            questionText: `Tell me about a time when you stepped into a ${role} position at a company like ${company} and led a major architectural or strategy initiative under tight delivery deadlines. How did you balance speed, technical debt, and team alignment?`,
+            focusArea: "Leadership, Strategic Execution & Stakeholder Alignment",
+            rubric: {
+              situationTaskGoal: "Describe the legacy bottleneck or tech debt urgency and deadline constraints.",
+              actionRequirement: "Detail your prioritization matrix, RFC document process, and automated test safety nets.",
+              resultMetricRequirement: "Highlight quantifiable reduction in incident rate or deployment speed improvements."
+            }
+          },
+          {
+            category: "Problem Solving & Quality Guardrails",
+            questionText: `In a ${role} capacity at ${company}, how do you approach enforcing strict quality guardrails, automated test coverage, and preventing regressions in mission-critical user workflows?`,
+            focusArea: "Quality Architecture, Verification & Operational Safety",
+            rubric: {
+              situationTaskGoal: "Explain the risk of unexpected edge cases or system failures in production.",
+              actionRequirement: "Detail schema validation, automated integration test suites, monitoring alerts, and fallback mechanisms.",
+              resultMetricRequirement: "Mention zero-regression compliance rate or automated test coverage metric."
+            }
+          }
+        ];
 
     const selected = questions[(questionIndex || 0) % questions.length];
     return {
@@ -923,6 +1122,15 @@ ${rawText}`;
     const wordCount = (userAnswer || '').split(/\s+/).filter(Boolean).length;
     const isDetailed = wordCount > 25;
     const role = jobTitle || 'Senior Candidate';
+    const isNonTech = (role + ' ' + (questionText || '')).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
+
+    const sampleText = isNonTech
+      ? `Here is how a 100-point STAR answer sounds for a ${role} position:\n\n**Situation:** Our enterprise division faced a critical 20% delay on a major multi-stakeholder sustainability and operational project across regional sites.\n**Task:** As ${role}, I took over project governance to realign 4 cross-functional teams and accelerate delivery within the approved budget.\n**Action:** I established weekly milestone tracking, streamlined vendor review protocols, implemented data-driven risk dashboards, and facilitated alignment workshops across key department leads.\n**Result:** Successfully delivered the initiative 3 weeks ahead of the revised deadline, achieving a 100% compliance rating and reducing operational overhead by 18%.`
+      : `Here is how a 100-point STAR answer sounds for a ${role} position:\n\n**Situation:** Our primary API endpoint experienced latency spikes up to 800ms during peak user activity.\n**Task:** As ${role}, I was tasked with reducing p99 response time below 150ms without increasing infrastructure cost by more than 10%.\n**Action:** I implemented Redis multi-level caching, optimized database query indexing, and refactored synchronous calls into asynchronous worker queues.\n**Result:** Reduced p99 latency by 72% to 110ms and improved peak request throughput by 3.5x while keeping costs flat.`;
+
+    const followUp = isNonTech
+      ? `"That's a solid breakdown! If project scope or regulatory requirements expanded mid-way, how would you re-prioritize deliverables without compromising quality?"`
+      : `"That's a solid breakdown! If user volume or operational complexity doubled overnight, what would be the very first bottleneck in that architecture and how would you address it?"`;
 
     return {
       overallScore: isDetailed ? 88 : 72,
@@ -933,15 +1141,15 @@ ${rawText}`;
         relevanceToRole: isDetailed ? 23 : 20
       },
       keyStrengths: [
-        `Clear articulation of the problem context and technical ownership relevant to a ${role}.`,
+        `Clear articulation of the problem context and leadership ownership relevant to a ${role}.`,
         "Demonstrated understanding of structured execution and team communication."
       ],
       areasForImprovement: [
-        "Include more explicit quantifiable metrics in the 'Result' section (e.g. % performance increase, exact latency or cost savings drop).",
-        "Elaborate on specific architectural or operational tradeoffs considered during the 'Action' phase."
+        "Include more explicit quantifiable metrics in the 'Result' section (e.g. % cost savings, exact timeline reduction, or efficiency gains).",
+        "Elaborate on specific strategic or operational tradeoffs considered during the 'Action' phase."
       ],
-      revisedSTARSample: `Here is how a 100-point STAR answer sounds for a ${role} position:\n\n**Situation:** Our primary API endpoint experienced latency spikes up to 800ms during peak user activity.\n**Task:** As ${role}, I was tasked with reducing p99 response time below 150ms without increasing infrastructure cost by more than 10%.\n**Action:** I implemented Redis multi-level caching, optimized database query indexing, and refactored synchronous calls into asynchronous worker queues.\n**Result:** Reduced p99 latency by 72% to 110ms and improved peak request throughput by 3.5x while keeping costs flat.`,
-      followUpQuestion: `That's a solid breakdown! If user volume or operational complexity doubled overnight, what would be the very first bottleneck in that architecture and how would you address it?`
+      revisedSTARSample: sampleText,
+      followUpQuestion: followUp
     };
   }
 

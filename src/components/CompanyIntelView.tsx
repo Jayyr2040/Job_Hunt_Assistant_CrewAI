@@ -106,59 +106,72 @@ export const CompanyIntelView: React.FC<CompanyIntelViewProps> = ({
 
             {/* Grid Layout for Tech Stack & News */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Tech Stack Breakdown */}
-              <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-3 font-semibold text-xs text-gray-900 uppercase tracking-wider">
-                  <Code2 className="w-4 h-4 text-blue-600" />
-                  Tech Stack Analysis
-                </div>
+              {/* Tech Stack / Operational Capabilities Breakdown */}
+              {(() => {
+                const domainContext = ((activeLead?.title || '') + ' ' + (intel.companyName || '') + ' ' + (intel.overview || '') + ' ' + (activeLead?.description || '')).toLowerCase();
+                const isNonTechDomain = domainContext.match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager/);
 
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Languages:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {intel.techStack.languages.map((item) => (
-                        <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
-                          {item}
-                        </span>
-                      ))}
+                const cardTitle = isNonTechDomain ? 'Operational & Domain Competencies' : 'Tech Stack Analysis';
+                const label1 = isNonTechDomain ? 'Core Domains & Policy:' : 'Languages:';
+                const label2 = isNonTechDomain ? 'Methodologies & Frameworks:' : 'Frameworks:';
+                const label3 = isNonTechDomain ? 'Infrastructure & Platforms:' : 'Cloud & Infrastructure:';
+                const label4 = isNonTechDomain ? 'Reporting & Analytics:' : 'Databases & Caching:';
+
+                return (
+                  <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-3 font-semibold text-xs text-gray-900 uppercase tracking-wider">
+                      <Code2 className="w-4 h-4 text-blue-600" />
+                      {cardTitle}
+                    </div>
+
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{label1}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {intel.techStack.languages.map((item) => (
+                            <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{label2}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {intel.techStack.frameworks.map((item) => (
+                            <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{label3}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {intel.techStack.cloudAndDevOps.map((item) => (
+                            <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">{label4}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {intel.techStack.dataAndDatabase.map((item) => (
+                            <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Frameworks:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {intel.techStack.frameworks.map((item) => (
-                        <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Cloud & Infrastructure:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {intel.techStack.cloudAndDevOps.map((item) => (
-                        <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Databases & Caching:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {intel.techStack.dataAndDatabase.map((item) => (
-                        <span key={item} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-800 rounded-md text-[11px] font-mono font-medium">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* News & Strategic Priorities */}
               <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-4">
