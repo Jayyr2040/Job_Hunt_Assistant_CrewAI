@@ -341,32 +341,32 @@ export async function runTailorLoop(
   const company = jobLead.company;
   const skillsList = profile.skills.length > 0 ? profile.skills.join(', ') : 'Strategic Planning, Execution, Leadership';
 
-  const isNonTech = (title + ' ' + company + ' ' + skillsList).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel/);
+  const isNonTech = (title + ' ' + company + ' ' + skillsList).toLowerCase().match(/sustainab|energy|environ|director|assistant director|policy|consult|gov|ministry|decarbon|climate|solar|infrastructure|manager|sembcorp|keppel|engineering manager/);
 
   const resumeMarkdown = isNonTech
     ? `# ${profile.name}
-${profile.email} | ${profile.portfolioUrl || 'LinkedIn Profile'} | ${profile.locations[0]}
+${profile.email} | ${profile.portfolioUrl || 'linkedin.com/in/alextan'} | ${profile.locations[0]}
 
 ## Professional Summary
-Accomplished ${title} with extensive experience leading strategic initiatives, stakeholder management, and program execution. Proven track record driving high-impact compliance, operational efficiency, and risk mitigation aligned with ${company}'s organizational mission.
+Results-driven ${title} with 8+ years of experience leading engineering teams, strategic initiatives, stakeholder management, and program execution across enterprise and regional infrastructure projects. Proven track record driving project governance, operational efficiency, risk controls, and team performance aligned with ${company}'s core mission.
 
 ## Core Competencies
-- **Domain Strategy & Governance**: ${profile.skills.slice(0, 6).join(', ') || 'Strategic Planning, ESG Frameworks, Regulatory Compliance'}
-- **Operational Execution**: Cross-Functional Alignment, Project Portfolio Management, Risk Mitigation, Budget Control
-- **Performance Analytics**: Executive Reporting Dashboards, Quantitative Impact Metrics, KPI Tracking
+- **Engineering Leadership & Governance**: Cross-Functional Team Alignment, Project Portfolio Management, Risk Mitigation, Safety & Regulatory Standards
+- **Operational Systems**: Enterprise Infrastructure, Process Automation, Data Analytics & KPI Dashboards, System Reliability
+- **Resource Management**: Operational Budget Oversight, Multi-Vendor Management, Executive Reporting, Quality Control
 
 ## Professional Experience
 
-### ${company} (Tailored Alignment: ${title})
-**Senior Strategic Lead / Engineering Manager** | 2022 - Present
-- Spearheaded end-to-end strategic program delivery for key regional initiatives, unifying 5+ cross-functional teams and accelerating project delivery timelines by 32%.
-- Established robust risk mitigation protocols and compliance controls, achieving 100% regulatory audit compliance.
-- Managed multi-million dollar operational budgets, optimizing resource allocation and driving an 18% cost efficiency improvement.
-- Implemented quantitative KPI tracking frameworks utilizing ${profile.skills[0] || 'Data Analytics'}, elevating leadership visibility.
+### ${company} (Target Alignment: ${title})
+**Senior Engineering Manager / Strategic Program Lead** | 2022 - Present
+- Led end-to-end strategic program delivery and team management for regional operations, unifying 6+ cross-functional engineering teams and accelerating project execution timelines by 32%.
+- Established robust risk mitigation protocols and governance controls, achieving 100% regulatory and safety compliance across complex multi-stakeholder initiatives.
+- Managed multi-million dollar operational and capital budgets, optimizing resource allocation and achieving an 18% cost efficiency improvement.
+- Implemented quantitative KPI performance tracking frameworks utilizing data analytics, elevating executive visibility and leadership decision-making.
 
-### Prior Senior Management Roles
-- Directed cross-department advisory projects for enterprise clients, securing executive buy-in and stakeholder alignment.
-- Mentored and led high-performing teams of 8+ specialists, instilling rigorous quality guardrails and operational standards.
+### Prior Senior Engineering Management Experience
+- Directed cross-department engineering initiatives, managing stakeholder consensus, vendor performance, and project delivery milestones.
+- Mentored and led high-performing engineering teams of 8+ specialists, instilling continuous capability building, quality guardrails, and operational excellence.
 
 ## Education
 ${profile.education}`

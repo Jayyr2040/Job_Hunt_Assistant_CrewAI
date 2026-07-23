@@ -36,42 +36,98 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({
     onGenerateQuestion(nextIdx);
   };
 
+  const speakWebSpeech = (text: string) => {
+    if (!('speechSynthesis' in window)) {
+      setIsAudioLoading(false);
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel(); // Reset any pending queue
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+
+      // Select best natural voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(
+        (v) =>
+          v.lang.startsWith('en') &&
+          (v.name.includes('Natural') ||
+            v.name.includes('Google') ||
+            v.name.includes('Samantha') ||
+            v.name.includes('Daniel') ||
+            v.name.includes('Alex'))
+      ) || voices.find((v) => v.lang.startsWith('en'));
+
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      utterance.onstart = () => {
+        setIsPlayingAudio(true);
+        setIsAudioLoading(false);
+      };
+
+      utterance.onend = () => {
+        setIsPlayingAudio(false);
+        setIsAudioLoading(false);
+      };
+
+      utterance.onerror = (err) => {
+        console.warn('SpeechSynthesis utterance error:', err);
+        setIsPlayingAudio(false);
+        setIsAudioLoading(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+      setIsPlayingAudio(true);
+      setIsAudioLoading(false);
+    } catch (err) {
+      console.error('SpeechSynthesis error:', err);
+      setIsPlayingAudio(false);
+      setIsAudioLoading(false);
+    }
+  };
+
   const handlePlayVoice = async () => {
     if (!currentTurn?.questionText) return;
 
     if (isPlayingAudio) {
-      window.speechSynthesis.cancel();
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       setIsPlayingAudio(false);
       return;
     }
 
     setIsAudioLoading(true);
 
+    // Try Gemini TTS API first
     try {
       const audioBase64 = await generateTTSAudio(currentTurn.questionText);
       if (audioBase64) {
-        // Play PCM / Base64 or Audio Blob
-        const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+        const audio = new Audio(`data:audio/wav;base64,${audioBase64}`);
+        
         audio.onended = () => setIsPlayingAudio(false);
-        audio.play();
+        audio.onerror = () => {
+          setIsPlayingAudio(false);
+          speakWebSpeech(currentTurn.questionText);
+        };
+
+        await audio.play();
         setIsPlayingAudio(true);
         setIsAudioLoading(false);
         return;
       }
     } catch (err) {
-      console.warn('TTS API error, using SpeechSynthesis fallback:', err);
+      console.warn('TTS API error or autoplay blocked, using Web Speech fallback:', err);
     }
 
-    // Web Speech API Fallback
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(currentTurn.questionText);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.onend = () => setIsPlayingAudio(false);
-      window.speechSynthesis.speak(utterance);
-      setIsPlayingAudio(true);
-    }
-    setIsAudioLoading(false);
+    // Web Speech API Primary / Fallback
+    speakWebSpeech(currentTurn.questionText);
   };
 
   const handleSubmitAnswer = (e: React.FormEvent) => {
