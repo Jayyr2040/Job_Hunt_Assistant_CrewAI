@@ -180,6 +180,41 @@ async function startServer() {
     };
   }
 
+  // Helper to query local Ollama server if available as a fallback when Gemini is unavailable or quota limited
+  async function tryOllamaGenerate(prompt: string): Promise<{ text: string } | null> {
+    const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+    try {
+      const tagsRes = await fetch(`${ollamaHost}/api/tags`, { signal: AbortSignal.timeout(1500) });
+      if (!tagsRes.ok) return null;
+      const tagsData = (await tagsRes.json()) as any;
+      const models: any[] = tagsData.models || [];
+      if (!models || models.length === 0) return null;
+
+      const modelName = models[0].name || models[0].model || 'llama3.2';
+      console.log(`[Ollama Fallback] Gemini API unavailable/quota-limited. Calling local Ollama model "${modelName}" at ${ollamaHost}...`);
+
+      const genRes = await fetch(`${ollamaHost}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelName,
+          prompt: prompt,
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(45000),
+      });
+
+      if (!genRes.ok) return null;
+      const genData = (await genRes.json()) as any;
+      if (genData && genData.response) {
+        return { text: genData.response };
+      }
+      return null;
+    } catch (e: any) {
+      return null;
+    }
+  }
+
   // Helper to retry Gemini calls with exponential backoff & fallback models on transient errors (e.g. 503 high demand)
   async function generateContentWithRetry(ai: GoogleGenAI, params: any) {
     const primaryModel = params.model || 'gemini-3.6-flash';
@@ -244,6 +279,15 @@ async function startServer() {
         }
       }
     }
+
+    // If all Gemini attempts failed, try local Ollama if running
+    if (typeof params?.contents === 'string') {
+      const ollamaResponse = await tryOllamaGenerate(params.contents);
+      if (ollamaResponse) {
+        return ollamaResponse;
+      }
+    }
+
     throw lastError || new Error('All Gemini API attempts failed');
   }
 
@@ -774,7 +818,7 @@ Output JSON:
         },
       });
 
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const base64Audio = (response as any).candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
         res.json({ success: true, audioBase64: base64Audio });
       } else {
